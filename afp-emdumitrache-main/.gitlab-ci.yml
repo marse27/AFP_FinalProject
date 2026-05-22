@@ -1,0 +1,8 @@
+image: haskell:9.10-slim-bullseye
+
+test:
+  stage: test
+  script:
+    - cabal update
+    - make build
+    - make test
