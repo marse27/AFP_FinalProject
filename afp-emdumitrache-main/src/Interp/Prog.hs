@@ -8,7 +8,9 @@ import Eval     (Eval)
 import qualified Interp.Stmt as S
 import qualified Interp.Expr as E
 
--- | Evaluate a program and return its final value.
+-- Here we evaluate the whole program. 
+-- A program must end with an expression, because that expression gives the final value of the program. 
+-- Each statement before that is executed in order.
 interp :: Program -> Eval Value
 interp (Program [])         = throwError "Missing return statement"
 interp (Program [SExpr e])  = E.interp e
