@@ -1,0 +1,9 @@
+// Demonstrates mutable borrows and NLL (non-lexical lifetimes).
+// The immutable borrow 'borrow' expires at its last syntactic use (*borrow),
+// so the mutable borrow inside set_red is accepted immediately afterwards.
+fn set_red(mut light: &mut Light) -> () { *light = Red };
+let mut signal = Green;
+let borrow = &signal;
+*borrow;
+set_red(&mut signal);
+signal

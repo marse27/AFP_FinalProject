@@ -1,0 +1,25 @@
+\begin{figure}
+    \small
+
+    % Program --------------------------------------------
+
+    \begin{prooftree}
+        \AxiomC{$\Gamma,\Phi \vdash e : \tau$}
+
+        \RightLabel{[\textsc{P-Ret}]}
+
+        \UnaryInfC{$\Gamma,\Phi \vdash e \blacktriangleright \tau$}
+    \end{prooftree}
+
+    \begin{prooftree}
+        \AxiomC{$\Gamma,\Phi \vdash s\ \triangleright\ \Gamma_s,\Phi_s$}
+        \AxiomC{$\Gamma_s,\Phi_s \vdash p\ \blacktriangleright\ \tau$}
+
+        \RightLabel{[\textsc{P-Seq}]}
+
+        \BinaryInfC{$\Gamma,\Phi \quad\vdash\quad s \texttt{;}\ p \quad\blacktriangleright\quad \tau$}
+    \end{prooftree}
+
+\caption{Typing rules for programs}
+\label{fig:tr-prog}
+\end{figure}

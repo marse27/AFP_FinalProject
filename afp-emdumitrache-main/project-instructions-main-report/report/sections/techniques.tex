@@ -1,0 +1,325 @@
+\section{Techniques}
+
+\subsection{Technique 1: Purely Functional Data Structure}
+
+\textbf{Module:} \texttt{src/ScopeStack.hs}
+
+The central data structure is the \emph{scope stack}: a persistent,
+purely functional stack of hash-map frames.
+
+\begin{figure}[ht!]
+    \centering
+    \begin{minipage}{.9\linewidth}
+\begin{lstlisting}[language=Haskell]
+newtype ScopeStack a = ScopeStack [Map.Map Ident a]
+
+push :: ScopeStack a -> ScopeStack a
+push (ScopeStack fs) = ScopeStack (Map.empty : fs)
+
+pop :: ScopeStack a -> ScopeStack a
+pop (ScopeStack (_:fs@(_:_))) = ScopeStack fs
+pop (ScopeStack _)             = ScopeStack [Map.empty]
+
+lookupStack :: Ident -> ScopeStack a -> Maybe a
+lookupStack x (ScopeStack fs) = foldr (\f acc ->
+  case Map.lookup x f of { Just v -> Just v; _ -> acc }) Nothing fs
+
+updateStack :: Ident -> a -> ScopeStack a -> ScopeStack a
+updateStack x v (ScopeStack fs) = ScopeStack (go fs)
+  where go []     = []
+        go (f:rest)
+          | Map.member x f = Map.insert x v f : rest
+          | otherwise      = f : go rest
+\end{lstlisting}
+    \end{minipage}
+    \captionof{lstlisting}{\texttt{ScopeStack}: push, pop, lookup, update}
+    \label{lst:scopestack}
+\end{figure}
+
+\noindent
+\textbf{Why it qualifies as a persistent data structure.}
+\texttt{push} and \texttt{pop} are O(1) list cons and tail --- the old stack
+is never overwritten.
+After a \texttt{pop}, the caller still holds a reference to the original
+\texttt{push}ed version; no copy is needed.
+\texttt{updateStack} rewrites only the \emph{first frame} that contains the
+key and shares all other frames with the original, so two callers holding
+different versions of the stack remain consistent.
+
+\noindent
+\textbf{Why \texttt{updateStack} matters for ownership.}
+When an inner block assigns to an outer variable
+(\texttt{let mut x = 0; \{ x = 5 \}}),
+\texttt{updateStack} finds \texttt{x} in an outer frame and updates it
+\emph{in place within that frame}, while the inner scope frame is discarded
+on block exit.
+Without this operation the persistent structure would silently ignore the
+mutation.
+
+\noindent
+\textbf{Advanced usage.}
+The same \texttt{ScopeStack} is the \emph{sole mechanism} for variable
+scoping, mutability, ownership tracking, borrow counting, and lifetime
+management in every phase.
+Both the type checker (\texttt{TcCtx.\_tcVars :: ScopeStack VarInfo}) and
+the interpreter (\texttt{EvalCtx.\_evalVars :: ScopeStack Value}) use it.
+There is no separate ownership map, no borrow graph, and no auxiliary data
+structure for scoping.
+
+% ---------------------------------------------------------------------------
+\subsection{Technique 2: Lenses and Traversals}
+% ---------------------------------------------------------------------------
+
+\textbf{Modules:} \texttt{src/Context.hs} (lenses),
+                  \texttt{src/TypeCheck/Stmt.hs} (NLL traversal)
+
+\subsubsection*{Van Laarhoven Lenses}
+
+The project uses five hand-rolled van Laarhoven lenses to focus into the
+nested fields of \texttt{TcCtx} and \texttt{EvalCtx}:
+
+\begin{figure}[ht!]
+    \centering
+    \begin{minipage}{.9\linewidth}
+\begin{lstlisting}[language=Haskell]
+type Lens' s a = forall f. Functor f => (a -> f a) -> s -> f s
+
+view :: Lens' s a -> s -> a
+view l s = getConst (l Const s)
+
+over :: Lens' s a -> (a -> a) -> s -> s
+over l f s = runIdentity (l (Identity . f) s)
+
+set :: Lens' s a -> a -> s -> s
+set l v = over l (const v)
+
+-- Example lens for the variable scope in the type-checker context:
+tcVars :: Lens' TcCtx (ScopeStack VarInfo)
+tcVars f ctx = (\v -> ctx { _tcVars = v }) <$> f (_tcVars ctx)
+\end{lstlisting}
+    \end{minipage}
+    \captionof{lstlisting}{Hand-rolled van Laarhoven lens type and combinators}
+    \label{lst:lenses}
+\end{figure}
+
+\noindent
+Every TypeCheck and Interp module uses \texttt{modify (over tcVars ...)} to
+update nested context fields.
+Without lenses, each update would require a manual record-update expression
+and repeated \texttt{gets} calls.
+
+\subsubsection*{Traversal as a Structural Fold (NLL)}
+
+The advanced usage is in \texttt{releaseExpiredBorrows} in
+\texttt{TypeCheck/Stmt.hs}.
+This function must identify borrows whose holder is no longer live after a
+statement, but it must not modify the scope stack --- it only needs to
+\emph{collect} the expired entries.
+
+\begin{figure}[ht!]
+    \centering
+    \begin{minipage}{.9\linewidth}
+\begin{lstlisting}[language=Haskell]
+releaseExpiredBorrows :: Set.Set Ident -> Tc ()
+releaseExpiredBorrows live = do
+  vars <- gets (view tcVars)
+  let expired = getConst $
+        Map.traverseWithKey
+          (\x vi -> Const $
+            if x `Set.notMember` live && isJust (varBorrowOf vi)
+            then [(x, vi)]
+            else [])
+          (topBindings vars)
+  mapM_ releaseAndClear expired
+\end{lstlisting}
+    \end{minipage}
+    \captionof{lstlisting}{NLL fold using \texttt{Const} applicative as a structural fold}
+    \label{lst:nll-fold}
+\end{figure}
+
+\noindent
+\textbf{Why this is a traversal.}
+\texttt{Map.traverseWithKey} has type
+\texttt{Applicative f => (k -> a -> f a) -> Map k a -> f (Map k a)}.
+It is a van Laarhoven traversal over the \texttt{(key, value)} pairs of a map.
+When the applicative \texttt{f} is instantiated to
+\texttt{Const [(Ident, VarInfo)]}, the \texttt{<*>} operation is list
+concatenation (from the \texttt{Monoid} instance of lists), and no new map is
+ever allocated --- the ``return value'' is discarded via \texttt{getConst}.
+This transforms a structure-mapping operation into a
+\emph{zero-allocation structural fold}, collecting all expired borrow entries
+in a single traversal of the top scope frame.
+The same function instantiated with \texttt{Identity} would \emph{update}
+the map; with \texttt{Const} it only \emph{reads} from it.
+
+% ---------------------------------------------------------------------------
+\subsection{Technique 3: Monad Transformers}
+% ---------------------------------------------------------------------------
+
+\textbf{Modules:} \texttt{src/Tc.hs}, \texttt{src/Eval.hs}
+
+\begin{figure}[ht!]
+    \centering
+    \begin{minipage}{.9\linewidth}
+\begin{lstlisting}[language=Haskell]
+-- Type-checker monad
+type Tc a = ExceptT String (State TcCtx) a
+
+runTc :: TcCtx -> Tc a -> Either String a
+runTc ctx m = evalState (runExceptT m) ctx
+
+-- Interpreter monad
+type Eval a = ExceptT String (State EvalCtx) a
+
+runEval :: EvalCtx -> Eval a -> Either String a
+runEval ctx m = evalState (runExceptT m) ctx
+\end{lstlisting}
+    \end{minipage}
+    \captionof{lstlisting}{\texttt{Tc} and \texttt{Eval} monad transformer stacks}
+    \label{lst:monads}
+\end{figure}
+
+\noindent
+\textbf{Why \texttt{ExceptT} over \texttt{State}.}
+The type checker needs two capabilities simultaneously:
+\begin{itemize}
+  \item \emph{Mutable state}: the context $\Gamma$ is updated as bindings are
+    introduced, variables are moved, and borrow counts change.
+    \texttt{State TcCtx} provides \texttt{gets} and \texttt{modify}.
+  \item \emph{Short-circuiting errors}: a type error should abort the current
+    check immediately without running further checks.
+    \texttt{ExceptT String} provides \texttt{throwError}.
+\end{itemize}
+
+Neither capability alone suffices.
+A pure \texttt{Either String (TcCtx, a)} function would need to thread the
+context manually through every call.
+A \texttt{State TcCtx (Either String a)} would not short-circuit --- errors
+would be accumulated as \texttt{Left} values without stopping execution.
+The transformer stack \texttt{ExceptT String (State TcCtx)} gives both:
+\texttt{throwError} short-circuits and the state persists until then.
+
+\begin{figure}[ht!]
+    \centering
+    \begin{minipage}{.9\linewidth}
+\begin{lstlisting}[language=Haskell]
+-- Typical usage in TypeCheck/Stmt.hs
+infer (SAssign x e) = do
+  vars <- gets (view tcVars)             -- read state
+  case lookupStack x vars of
+    Nothing -> throwError "not in scope" -- short-circuit on error
+    Just vi -> do
+      unless (varMut vi) $
+        throwError "Cannot assign to immutable variable"
+      E.check e (varType vi)
+      modify (over tcVars (updateStack x vi { varOwned = True }))
+      -- persist state update ^
+\end{lstlisting}
+    \end{minipage}
+    \captionof{lstlisting}{Typical use of \texttt{gets}, \texttt{throwError}, and \texttt{modify}}
+    \label{lst:monad-usage}
+\end{figure}
+
+\noindent
+The two stacks (\texttt{Tc} and \texttt{Eval}) are structurally identical;
+only the context type differs (\texttt{TcCtx} vs.\ \texttt{EvalCtx}).
+This means every type-checker combinator (\texttt{throwError}, \texttt{gets},
+\texttt{modify}) has an exact counterpart in the interpreter, making both
+codebases read identically at the monad-plumbing level.
+
+% ---------------------------------------------------------------------------
+\subsection{Technique 4: Concurrency}
+% ---------------------------------------------------------------------------
+
+\textbf{Modules:} \texttt{src/Logger.hs} (infrastructure),
+\texttt{src/TypeCheck/Stmt.hs} + \texttt{src/Interp/Stmt.hs} (language-level)
+
+Concurrency is used at two levels: an \emph{infrastructure} level (a background
+logging thread) and a \emph{language} level (a user-facing \texttt{spawn}
+construct whose safety is enforced by the type checker).
+
+\subsubsection*{Background Logger (\texttt{forkIO} + \texttt{Chan} + \texttt{MVar})}
+
+\begin{figure}[ht!]
+    \centering
+    \begin{minipage}{.9\linewidth}
+\begin{lstlisting}[language=Haskell]
+data Logger = Logger
+  { _chan    :: Chan (Maybe LogMsg)  -- message channel; Nothing = stop
+  , _done    :: MVar ()             -- drain thread signals completion
+  , _enabled :: Bool
+  }
+
+startLogger :: Bool -> IO Logger
+startLogger enabled = do
+  ch   <- newChan
+  done <- newEmptyMVar
+  _    <- forkIO (drain ch done)    -- fork background thread
+  return (Logger ch done enabled)
+
+stopLogger :: Logger -> IO ()
+stopLogger (Logger ch done _) = do
+  writeChan ch Nothing              -- send stop sentinel
+  takeMVar done                     -- block until drain completes
+\end{lstlisting}
+    \end{minipage}
+    \captionof{lstlisting}{Logger using \texttt{forkIO}, \texttt{Chan}, and \texttt{MVar}}
+    \label{lst:logger}
+\end{figure}
+
+\noindent
+The background thread drains the \texttt{Chan} until it receives a
+\texttt{Nothing} sentinel, then signals completion via the \texttt{MVar}.
+This is a classic producer-consumer pattern: the main thread writes messages
+asynchronously; the drain thread prints them; \texttt{stopLogger} provides
+a synchronous barrier that prevents messages from being lost on program exit.
+Five logger tests verify that the presence of the background thread does not
+affect type-checker or interpreter results.
+
+\subsubsection*{Language-Level \texttt{spawn}}
+
+\begin{figure}[ht!]
+    \centering
+    \begin{minipage}{.9\linewidth}
+\begin{lstlisting}[language=Haskell]
+-- Type checker: enforce Copy-only captures
+infer (SSpawn body) = do
+  let freeVs = mentionedBlock body
+  vars <- gets (view tcVars)
+  let checkCapture x = case lookupStack x vars of
+        Nothing -> return ()
+        Just vi -> unless (isCopyable (varType vi)) $ throwError $
+          "Cannot capture non-Copy variable '" ++ printTree x
+          ++ "' in spawn block"
+  mapM_ checkCapture (Set.toList freeVs)
+  checkBlock body
+
+-- Interpreter: run synchronously (safety guarantee is in the type checker)
+interp (SSpawn body) = interpBlock body
+\end{lstlisting}
+    \end{minipage}
+    \captionof{lstlisting}{\texttt{spawn} type checking and interpretation}
+    \label{lst:spawn}
+\end{figure}
+
+\noindent
+\textbf{Thread-safety via the type system.}
+The \texttt{isCopyable} predicate classifies \texttt{int}, \texttt{bool}, and
+immutable references (\texttt{\&T}) as \texttt{Copy}; \texttt{Light}, lists,
+\texttt{Result} of non-\texttt{Copy}, and mutable references
+(\texttt{\&mut T}) are not \texttt{Copy}.
+Because \texttt{Copy} types have value semantics (no aliasing), sharing them
+between threads is always safe.
+Non-\texttt{Copy} types have aliasing that would constitute a data race, so
+they are rejected at the \texttt{spawn} site.
+The type checker thus statically guarantees that a real concurrent execution
+would be data-race-free --- no runtime locks are needed.
+
+\noindent
+\textbf{Two-level story.}
+The background logger demonstrates low-level concurrent infrastructure
+(fork, channel, synchronisation barrier).
+The language-level \texttt{spawn} demonstrates that the \emph{ownership type
+system} itself is the thread-safety mechanism: the affine and copy disciplines
+that prevent use-after-move also prevent data races, without any additional
+annotations.
