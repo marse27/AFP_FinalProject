@@ -8,8 +8,10 @@ import Tc       (Tc)
 import qualified TypeCheck.Stmt as S
 import qualified TypeCheck.Expr as E
 
--- | Infer the return type of a program (must end with a bare expression).
--- After each statement, NLL releases borrows not mentioned in remaining stmts.
+-- Here we type-check the whole program.
+-- A program must end with an expression, because that expression gives the final result type of the program.
+-- Each statement is checked one by one.
+-- After each statement, borrows that are not used anymore are released early.
 infer :: Program -> Tc Type
 infer (Program [])         = throwError "Missing return statement"
 infer (Program [SExpr e])  = E.infer e
