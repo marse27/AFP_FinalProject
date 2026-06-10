@@ -26,6 +26,11 @@ library afp-lib
         Evaluator
         Env
         Value
+        ScopeStack
+        Context
+        Tc
+        Eval
+        Logger
         Interp.Expr
         Interp.Stmt
         Interp.Prog
@@ -40,6 +45,7 @@ library afp-lib
         base >=4.17 && <4.22,
         array >=0.5.8 && <0.6,
         containers >=0.7 && <0.8,
+        mtl >=2.2 && <3,
         AFPLang:afp-grammar
 
 executable afp-lang
@@ -60,6 +66,7 @@ test-suite test
     other-modules:
         InterpTests
         TypeCheckTests
+        LoggerTests
         BogusTests
 
     default-language: GHC2021

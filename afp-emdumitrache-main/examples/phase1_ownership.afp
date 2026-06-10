@@ -1,0 +1,9 @@
+// Phase 1: reassigning a mutable Light variable restores ownership.
+// After `light = Green`, `light` is owned again and can be passed to a function.
+// Expected output: Green
+fn id_light(s: Light) -> Light {
+    s
+};
+let mut light = Red;
+light = Green;
+id_light(light)

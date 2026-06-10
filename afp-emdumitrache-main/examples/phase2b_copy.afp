@@ -1,0 +1,9 @@
+// Phase 2B: int and bool are Copy — a variable keeps ownership after being read.
+// The same binding can be passed to a function multiple times without error.
+// Expected output: 15  (5 + 5 + 5)
+
+fn use_int(x: int) -> int { x };
+let a = 5;
+let b = use_int(a);
+let c = use_int(a);
+a + b + c

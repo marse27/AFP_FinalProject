@@ -1,64 +1,143 @@
--- A program is defined as a (possibly empty) list of statements separated by semicolons,
--- where the final statement should return the result of the program as a whole
+-- A program is a list of statements; the final statement is the return value.
 
 entrypoints Program;
 
 Program. Program ::= [Stmt] ;
-
---This is the syntax from BNFC to define a list of statements
 separator Stmt ";" ;
 
--- TYPES --------------------------------------------------------------
+-- TYPES -----------------------------------------------------------------------
 
-TInt.  Type1 ::= "int";
-TBool. Type1 ::= "bool";
+TInt.     Type1 ::= "int" ;
+TBool.    Type1 ::= "bool" ;
+TVoid.    Type1 ::= "(" ")" ;
+TLight.   Type1 ::= "Light" ;
+TList.    Type1 ::= "[" Type "]" ;
+TResult.  Type1 ::= "Result" "<" Type ">" ;
+TPair.    Type1 ::= "(" Type "," Type ")" ;
+TRefMut.  Type1 ::= "&" "mut" Type ;
+TRef.     Type1 ::= "&" Type ;
 
-_. Type2 ::= "(" Type ")";
-_. Type1 ::= Type2;
-_. Type  ::= Type1;
+_. Type2 ::= "(" Type ")" ;
+_. Type1 ::= Type2 ;
+_. Type  ::= Type1 ;
 
--- STATEMENTS ---------------------------------------------------------
+-- BLOCK -----------------------------------------------------------------------
 
-SLet.  Stmt ::= "val" Ident "=" Exp ;
-SFun.  Stmt ::= "fun" Ident "(" Ident ":" Type ") =" Exp ;
-SCall. Stmt ::= Ident "=" Ident "(" Exp ")";
-SRet.  Stmt ::= Exp;
+Block. Block ::= "{" [Stmt] "}" ;
 
--- EXPRESSIONS --------------------------------------------------------
+-- FUNCTION PARAMETERS ---------------------------------------------------------
 
--- Arithmetic
-EInt. Exp8  ::= Integer;
+ParamImm. Param ::= Ident ":" Type ;
+ParamMut. Param ::= "mut" Ident ":" Type ;
+separator Param "," ;
 
-EMul. Exp6  ::= Exp6 "*" Exp7;
-EDiv. Exp7  ::= Exp7 "/" Exp8;
-EAdd. Exp5  ::= Exp5 "+" Exp6;
-ESub. Exp5  ::= Exp5 "-" Exp6;
+-- STATEMENTS ------------------------------------------------------------------
 
--- Booleans
-ETrue.  Exp8  ::= "True";
-EFalse. Exp8  ::= "False";
+SLetImm.      Stmt ::= "let" Ident "=" Exp ;
+SLetMut.      Stmt ::= "let" "mut" Ident "=" Exp ;
+SDerefAssign. Stmt ::= "*" Ident "=" Exp ;
+SAssign.      Stmt ::= Ident "=" Exp ;
+SIndexAssign. Stmt ::= Ident "[" Exp "]" "=" Exp ;
+SPush.        Stmt ::= Ident "." "push" "(" Exp ")" ;
+SInsert.      Stmt ::= Ident "." "insert" "(" Exp "," Exp ")" ;
+SRemove.      Stmt ::= Ident "." "remove" "(" Exp ")" ;
+SBlock.       Stmt ::= Block ;
+SIf.          Stmt ::= "if" Exp Block ;
+SIfElse.      Stmt ::= "if" Exp Block "else" Block ;
+SWhile.       Stmt ::= "while" Exp Block ;
+SFun.         Stmt ::= "fn" Ident "(" [Param] ")" "->" Type Block ;
+SExpr.        Stmt ::= Exp ;
 
-ENot.   Exp3  ::= "!" Exp3;
-EAnd.   Exp2  ::= Exp2 "&&" Exp3;
-EOr.    Exp1  ::= Exp1 "||" Exp2;
+-- EXPRESSIONS -----------------------------------------------------------------
+
+-- Literals
+EInt.         Exp8 ::= Integer ;
+ETrue.        Exp8 ::= "true" ;
+EFalse.       Exp8 ::= "false" ;
+
+-- Light constructors (Phase 1)
+ELightRed.    Exp8 ::= "Red" ;
+ELightYellow. Exp8 ::= "Yellow" ;
+ELightGreen.  Exp8 ::= "Green" ;
+
+-- List literal (Phase 2A)
+EList.        Exp8 ::= "[" [Exp] "]" ;
+
+-- Result constructors (Phase 2C)
+EOk.          Exp8 ::= "Ok"  "(" Exp ")" ;
+EErr.         Exp8 ::= "Err" "(" Exp ")" ;
+
+-- Function call (before EVar so Ident "(" wins over Ident alone)
+ECall.        Exp8 ::= Ident "(" [Exp] ")" ;
+separator     Exp "," ;
+
+-- List index read: Ident "[" Exp "]" (before EVar so Ident "[" wins)
+EIndex.       Exp8 ::= Ident "[" Exp "]" ;
+
+-- Variable
+EVar.         Exp8 ::= Ident ;
+
+-- Pair literal (Phase 2C): "(" Exp "," Exp ")"
+EPair.        Exp8 ::= "(" Exp "," Exp ")" ;
+
+-- Mutable borrow expression (Phase 3B): "&" "mut" Ident
+ERefMut.      Exp8 ::= "&" "mut" Ident ;
+
+-- Borrow expression (Phase 3A): "&" Ident
+ERef.         Exp8 ::= "&" Ident ;
+
+-- Unary negation
+ENeg. Exp7 ::= "-" Exp8 ;
+
+-- Dereference (Phase 3A): "*" Exp8
+EDeref. Exp7 ::= "*" Exp8 ;
+
+-- Multiplication and division
+EMul. Exp6 ::= Exp6 "*" Exp7 ;
+EDiv. Exp6 ::= Exp6 "/" Exp7 ;
+
+-- Addition and subtraction
+EAdd. Exp5 ::= Exp5 "+" Exp6 ;
+ESub. Exp5 ::= Exp5 "-" Exp6 ;
 
 -- Comparisons
-EEq.  Exp4 ::= Exp5 "==" Exp5;
-ELt.  Exp4 ::= Exp5 "<" Exp5;
-EGt.  Exp4 ::= Exp5 ">" Exp5;
-ELeq. Exp4 ::= Exp5 "<=" Exp5;
-EGeq. Exp4 ::= Exp5 ">=" Exp5;
+EEq.  Exp4 ::= Exp5 "==" Exp5 ;
+ENeq. Exp4 ::= Exp5 "!=" Exp5 ;
+ELt.  Exp4 ::= Exp5 "<"  Exp5 ;
+EGt.  Exp4 ::= Exp5 ">"  Exp5 ;
+ELeq. Exp4 ::= Exp5 "<=" Exp5 ;
+EGeq. Exp4 ::= Exp5 ">=" Exp5 ;
 
--- Control flow
-EIf.  Exp ::= "if" Exp "then" Exp "else" Exp;
+-- Boolean not
+ENot. Exp3 ::= "!" Exp3 ;
 
--- Let bindings
-ELet. Exp ::= "let" Ident "=" Exp "in" Exp;
+-- Boolean and / or
+EAnd. Exp2 ::= Exp2 "&&" Exp3 ;
+EOr.  Exp1 ::= Exp1 "||" Exp2 ;
 
--- Variables
-EVar. Exp8 ::= Ident;
+-- if-then-else expression (uses "then" keyword to distinguish from if statement)
+EIf.  Exp  ::= "if" Exp "then" Exp "else" Exp ;
 
--- This part sets up the order of operation
+-- let-in expression
+ELet. Exp  ::= "let" Ident "=" Exp "in" Exp ;
+
+-- Match patterns (Phase 2C)
+PLightRed.    Pat ::= "Red" ;
+PLightYellow. Pat ::= "Yellow" ;
+PLightGreen.  Pat ::= "Green" ;
+POk.          Pat ::= "Ok"  "(" Ident ")" ;
+PErr.         Pat ::= "Err" "(" Ident ")" ;
+PPair.        Pat ::= "(" Ident "," Ident ")" ;
+PVar.         Pat ::= Ident ;
+
+-- Match arm: pattern "=>" expression
+MatchArm.     Arm ::= Pat "=>" Exp ;
+separator     Arm "," ;
+
+-- Match expression (Phase 2C)
+EMatch.       Exp ::= "match" Exp "{" [Arm] "}" ;
+
+-- Precedence coercions
 _. Exp8 ::= "(" Exp ")" ;
 _. Exp7 ::= Exp8 ;
 _. Exp6 ::= Exp7 ;
@@ -69,6 +148,6 @@ _. Exp2 ::= Exp3 ;
 _. Exp1 ::= Exp2 ;
 _. Exp  ::= Exp1 ;
 
--- For enabling comments
+-- Comments
 comment "//" ;
 comment "/*" "*/" ;

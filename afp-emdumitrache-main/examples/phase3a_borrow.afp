@@ -1,0 +1,9 @@
+// Phase 3A: immutable borrows.
+// Demonstrates: &x creates a borrow; *r dereferences; borrow prevents move;
+// borrow expires at end of scope; functions taking &T parameters.
+// Expected output: 42
+
+fn double_via_ref(r: &int) -> int { *r + *r };
+let x = 21;
+let r = &x;
+double_via_ref(r)

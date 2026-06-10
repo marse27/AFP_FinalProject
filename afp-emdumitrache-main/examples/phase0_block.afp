@@ -1,0 +1,7 @@
+// Block scoping: y is not visible outside, but mutation to x persists
+let mut x = 0;
+{
+    let y = 5;
+    x = y
+};
+x

@@ -1,24 +1,14 @@
-module TypeCheck.Prog where
+-- | Type-check a whole program; returns the type of its final expression.
+module TypeCheck.Prog (infer) where
 
-import Evaluator
-
-import Env
-
-import Value ( TClosure )
-
-import Lang.Abs ( Program( Program )
-                , Stmt( .. )
-                , Type )
-
+import Control.Monad.Except (throwError)
+import Lang.Abs (Program (..), Stmt (..), Type)
+import Tc       (Tc)
 import qualified TypeCheck.Stmt as S
 import qualified TypeCheck.Expr as E
-import qualified Lang.ErrM as S
 
--- PROGRAM TYPE CHECKER --------------------------------------------------------------
-
-infer :: Evaluator Type TClosure
-infer (Program []) env = throw "Missing return statement"
-infer (Program [SRet exp]) env = E.infer exp env
-infer (Program (stmt:prog)) env = do
-  nenv <- S.infer stmt env
-  infer (Program prog) nenv
+-- | Infer the return type of a program (must end with a bare expression).
+infer :: Program -> Tc Type
+infer (Program [])         = throwError "Missing return statement"
+infer (Program [SExpr e])  = E.infer e
+infer (Program (s : rest)) = S.infer s >> infer (Program rest)

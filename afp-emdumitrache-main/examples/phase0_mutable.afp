@@ -1,0 +1,4 @@
+// Mutable variables and reassignment
+let mut x = 0;
+x = 5;
+x

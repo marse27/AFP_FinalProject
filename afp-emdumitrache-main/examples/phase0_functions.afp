@@ -1,0 +1,15 @@
+// Multi-param functions and mutable parameters
+fn double(x: int) -> int {
+    x + x
+};
+fn plus(x: int, y: int) -> int {
+    x + y
+};
+fn double_in_place(mut x: int) -> int {
+    x = x * 2;
+    x
+};
+fn no_arg() -> int {
+    42
+};
+plus(double(3), no_arg())

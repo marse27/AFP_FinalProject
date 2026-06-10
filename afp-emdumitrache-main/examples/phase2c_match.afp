@@ -1,0 +1,9 @@
+// Phase 2C: Result, pairs, and match pattern matching.
+// Demonstrates: Ok/Err construction, pair construction, match exhaustiveness.
+// Expected output: 42
+
+fn safe_div(x: int, y: int) -> Result<int> {
+    if y == 0 then Err(0) else Ok(x / y)
+};
+let r = safe_div(84, 2);
+match r { Ok(v) => v, Err(e) => e }
