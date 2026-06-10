@@ -192,3 +192,35 @@ test = hspec $ do
   describe "Interpreter Phase 3B: set_red spec example" $ do
     interpTest "fn set_red(mut light: &mut Light) -> () { *light = Red }; let mut l = Green; set_red(&mut l); l"
                VLightRed
+
+  describe "Interpreter Phase 3C: NLL — borrow expires at last use" $ do
+    interpTest "let mut x = 5; let r = &x; *r; x = 10; x"     (VInt 10)
+    interpTest "let mut x = Red; let r = &x; *r; x = Green; x" VLightGreen
+
+  describe "Interpreter Phase 3C: NLL — unused borrow allows immediate reuse" $ do
+    interpTest "let mut x = 5; let r = &x; x = 10; x"          (VInt 10)
+    interpTest "let x = Red; let r = &x; x"                    VLightRed
+
+  describe "Interpreter Phase 3C: NLL — mutable borrow expires at last use" $ do
+    interpTest "let mut x = 5; let b = &mut x; *b; x = 20; x"  (VInt 20)
+    interpTest "let mut x = Red; let b = &mut x; *b = Green; x = Red; x" VLightRed
+
+  describe "Interpreter Phase 4A: lifetime-generic function returns reference" $ do
+    interpTest "fn id_ref<'a>(x: &'a int) -> &'a int { x }; let y = 5; let r = id_ref(&y); *r"
+               (VInt 5)
+    interpTest "fn id_ref<'a>(x: &'a Light) -> &'a Light { x }; let c = Red; let r = id_ref(&c); *r"
+               VLightRed
+    interpTest "fn first<'a, 'b>(x: &'a int, y: &'b int) -> &'a int { x }; let a = 3; let b = 4; let r = first(&a, &b); *r"
+               (VInt 3)
+
+  describe "Interpreter Phase 4A: lifetime function used for dereferencing" $ do
+    interpTest "fn deref_lt<'a>(x: &'a int) -> int { *x }; let y = 42; deref_lt(&y)"
+               (VInt 42)
+    interpTest "fn id_ref<'a>(x: &'a int) -> &'a int { x }; let y = 7; let r = id_ref(&y); *r + y"
+               (VInt 14)
+
+  describe "Interpreter Phase 4B: spawn runs block synchronously" $ do
+    interpTest "spawn { }; 42"                           (VInt 42)
+    interpTest "let x = 5; spawn { let y = x }; x"      (VInt 5)
+    interpTest "let b = true; spawn { let c = b }; b"   (VBool True)
+    interpTest "let mut x = 0; spawn { x = 1 }; x"      (VInt 1)

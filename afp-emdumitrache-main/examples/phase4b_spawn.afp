@@ -1,0 +1,10 @@
+-- Phase 4B: User-facing multithreading (spawn)
+-- Ownership enforces thread safety: only Copy types can be captured by a spawn block.
+-- Non-Copy values (Light, lists, Result, &mut) cannot be shared across thread boundaries.
+
+-- Copy primitives (int, bool) are safe to capture.
+let x = 5;
+let flag = true;
+spawn { let copy_x = x; let copy_flag = flag };
+x
+-- Expected output: 5

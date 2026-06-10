@@ -1,0 +1,11 @@
+-- Phase 3C: Non-Lexical Lifetimes (NLL)
+-- A borrow expires at its last syntactic use, not at the end of its lexical scope.
+-- This allows earlier reuse of the borrowed value.
+
+-- Example 1: borrow expires at last use (*r), then x can be reassigned
+let mut x = 5;
+let r = &x;
+*r;          -- last use of r; borrow on x expires here (NLL)
+x = 10;      -- legal: no active borrows on x
+x
+-- Expected output: 10

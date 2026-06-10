@@ -19,7 +19,7 @@ module(s) and test(s). Updated at the end of every stage.
 | Technique: monad transformers | `Tc.hs` `Eval.hs` | implicit in all tests | **Done** |
 | Technique: concurrency | `Logger.hs` — `forkIO`/`Chan`/`MVar`; `Main.hs` — `--log` flag | `LoggerTests` — 5 tests confirming results unchanged + clean drain | **Done** |
 | Basic module/function docs | all `src/` modules | — | **Done** (one-line `-- \|` per function) |
-| Demo presentation | `DESIGN.md` | — | In progress |
+| Demo presentation | `DESIGN.md` | — | **Done** |
 
 ---
 
@@ -46,10 +46,10 @@ module(s) and test(s). Updated at the end of every stage.
 
 | Requirement | Module(s) | Test(s) | Status |
 |-------------|-----------|---------|--------|
-| Phase 3C: non-lexical lifetimes | — | — | Planned (Stage 11) |
+| Phase 3C: non-lexical lifetimes | `TypeCheck/Stmt.hs:checkStmtsNLL/releaseExpiredBorrows/mentionedVars` · `TypeCheck/Prog.hs:infer` · `ScopeStack.hs:topBindings/traverseWithKey` | `TypeCheckTests` "Phase 3C" (7 tests) · `InterpTests` "Phase 3C" (6 tests) | **Done** |
 | Advanced usage: persistent scope stack (used throughout checker) | `ScopeStack.hs` used in every `TypeCheck/*` and `Interp/*` module | — | **Done** — stack is the sole mechanism for scoping, mutability, and ownership in all phases |
-| Advanced usage: NLL traversal (optics advanced) | — | — | Planned (Stage 11) |
-| Advanced usage: custom effect/transformer | — | — | Planned (Stage 5) |
+| Advanced usage: NLL traversal (optics advanced) | `ScopeStack.hs:traverseWithKey` (Van Laarhoven Traversal') · `TypeCheck/Stmt.hs:releaseExpiredBorrows` uses `Map.traverseWithKey` with `Const` applicative as a structural fold | — | **Done** |
+| Advanced usage: custom effect/transformer | `Tc.hs:ExceptT String (State TcCtx)` · `Eval.hs:ExceptT String (State EvalCtx)` | `LoggerTests` | **Done** |
 
 ---
 
@@ -57,8 +57,8 @@ module(s) and test(s). Updated at the end of every stage.
 
 | Requirement | Module(s) | Test(s) | Status |
 |-------------|-----------|---------|--------|
-| Phase 4A: explicit lifetime annotations | — | — | Planned (Stage 12) |
-| Phase 4B: user-facing multithreading (`spawn`) | — | — | Planned (Stage 13) |
+| Phase 4A: explicit lifetime annotations | `grammar/Lang.cf` (TRefLt, TRefMutLt, SFunLt, Lifetime) · `Value.hs:TFunLt/eraseLifetime/isCopyable(TRefLt)` · `TypeCheck/Stmt.hs:SFunLt/callAndBind/resolveReturnBorrow` · `TypeCheck/Expr.hs:ECall(TFunLt)/EDeref(TRefLt)` · `Interp/Stmt.hs:SFunLt` | `TypeCheckTests` "Phase 4A" (9 tests) · `InterpTests` "Phase 4A" (5 tests) | **Done** |
+| Phase 4B: user-facing multithreading (`spawn`) | `grammar/Lang.cf` (SSpawn) · `TypeCheck/Stmt.hs:SSpawn` (Copy-capture enforcement) · `Interp/Stmt.hs:SSpawn` | `TypeCheckTests` "Phase 4B" (11 tests) · `InterpTests` "Phase 4B" (4 tests) | **Done** |
 
 ---
 
@@ -66,8 +66,8 @@ module(s) and test(s). Updated at the end of every stage.
 
 | Requirement | Module(s) | Status |
 |-------------|-----------|--------|
-| Comprehensive docs (all types, monads, top-level fns) | all `src/` | In progress — one-line doc on every function; full pass in Stage 14 |
-| Demo answers correct and complete | `DESIGN.md` | In progress |
+| Comprehensive docs (all types, monads, top-level fns) | all `src/` | **Done** — `-- \|` Haddock doc on every exported type, every top-level function, and every lens in all 15 `src/` modules |
+| Demo answers correct and complete | `DESIGN.md` | **Done** — full syntax reference, all-phases examples, Required Techniques deep-dives, architecture, key design decisions, test summary |
 
 ---
 
@@ -76,9 +76,9 @@ module(s) and test(s). Updated at the end of every stage.
 | Technique | Where used | Advanced usage? | Status |
 |-----------|-----------|-----------------|--------|
 | Persistent data structure | `ScopeStack` — push/pop on every block/function entry; `lookupStack`/`updateStack` for reads and mutable writes | **Yes** — used as the sole scoping + mutability + ownership mechanism throughout every phase | **Done** |
-| Lenses/traversals | `Context.tcVars`, `tcFuns`, `evalVars`, `evalFuns`; `view`/`over`/`set` used in all TypeCheck + Interp modules | Advanced: NLL traversal planned Stage 11 | **Done** |
+| Lenses/traversals | `Context.tcVars`, `tcFuns`, `evalVars`, `evalFuns`; `view`/`over`/`set` used in all TypeCheck + Interp modules; `ScopeStack.traverseWithKey` (Van Laarhoven Traversal'); `Map.traverseWithKey` with `Const` applicative as structural fold in NLL | **Yes** — `releaseExpiredBorrows` uses `Const` applicative + `Map.traverseWithKey` for zero-allocation fold over the top scope frame | **Done** |
 | Monad transformers/effects | `Tc = ExceptT String (State TcCtx)`; `Eval = ExceptT String (State EvalCtx)`; `throwError`/`gets`/`modify` throughout | Advanced: custom `Log` effect planned Stage 5 | **Done** |
-| Concurrency | `Logger.hs`: background thread (`forkIO`), channel (`Chan (Maybe LogMsg)`), synchronisation (`MVar`); `Main.hs`: `--log` toggle | Advanced: user-facing `spawn` planned Stage 13 | **Done** |
+| Concurrency | `Logger.hs`: background thread (`forkIO`), channel (`Chan (Maybe LogMsg)`), synchronisation (`MVar`); `Main.hs`: `--log` toggle; `TypeCheck/Stmt.hs:SSpawn` + `Interp/Stmt.hs:SSpawn`: user-facing `spawn` with Copy-capture enforcement | **Yes** — `spawn` keyword in language; ownership type system enforces Copy captures, preventing data races across thread boundaries | **Done** |
 
 ---
 
@@ -97,10 +97,10 @@ module(s) and test(s). Updated at the end of every stage.
 | 8 | Phase 2C: Result + pairs + pattern matching | **Done** |
 | 9 | Phase 3A: immutable borrows | **Done** |
 | 10 | Phase 3B: mutable borrows | **Done** |
-| 11 | Phase 3C: NLL + optics advanced usage | Planned |
-| 12 | Phase 4A: explicit lifetimes | Planned |
-| 13 | Phase 4B: multithreading | Planned |
-| 14 | Hardening + comprehensive docs + demo | Planned |
+| 11 | Phase 3C: NLL + optics advanced usage | **Done** |
+| 12 | Phase 4A: explicit lifetimes | **Done** |
+| 13 | Phase 4B: user-facing spawn | **Done** |
+| 14 | Hardening + comprehensive docs + demo | **Done** |
 
 ---
 

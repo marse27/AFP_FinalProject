@@ -20,7 +20,7 @@ import Lang.Print (printTree)
 import Context    (VarInfo (..), tcVars, tcFuns, view, over)
 import ScopeStack (lookupStack, insertTop, updateStack, push, pop)
 import Tc         (Tc)
-import Value      (TClosure (..), isCopyable, paramType)
+import Value      (TClosure (..), eraseLifetime, isCopyable, paramType)
 
 -- | Check that an expression has exactly the expected type.
 check :: Exp -> Type -> Tc ()
@@ -90,6 +90,20 @@ infer (ECall f args) = do
           " argument(s) but got " ++ show (length args)
       mapM_ (\(e, p) -> check e (paramType p)) (zip args params)
       return retTy
+    Just (TFunLt _ params retTy) -> do
+      when (length args /= length params) $
+        throwError $ "Function " ++ show f ++
+          " expects " ++ show (length params) ++
+          " argument(s) but got " ++ show (length args)
+      mapM_ (\(e, p) -> check e (eraseLifetime (paramType p))) (zip args params)
+      case retTy of
+        TRefLt _ _    -> throwError $
+          "Return value of lifetime-generic function " ++ show f ++
+          " must be immediately bound: use 'let r = " ++ show f ++ "(...)'"
+        TRefMutLt _ _ -> throwError $
+          "Return value of lifetime-generic function " ++ show f ++
+          " must be immediately bound: use 'let r = " ++ show f ++ "(...)'"
+        _ -> return retTy
 infer (EList []) = throwError "Cannot infer type of empty list literal"
 infer (EList (e:es)) = do
   t <- infer e
@@ -139,16 +153,20 @@ infer (EDeref (EVar r)) = do
       unless (varOwned vi) $ throwError $
         "Value of " ++ printTree r ++ " used after being moved"
       case varType vi of
-        TRef inner    -> return inner
-        TRefMut inner -> return inner
-        t             -> throwError $ "Cannot dereference " ++ printTree r ++
-                         " of type " ++ printTree t
+        TRef inner      -> return inner
+        TRefMut inner   -> return inner
+        TRefLt _ inner  -> return inner
+        TRefMutLt _ inner -> return inner
+        t               -> throwError $ "Cannot dereference " ++ printTree r ++
+                           " of type " ++ printTree t
 infer (EDeref e) = do
   t <- infer e
   case t of
-    TRef inner    -> return inner
-    TRefMut inner -> return inner
-    _             -> throwError $ "Cannot dereference a value of type " ++ printTree t
+    TRef inner      -> return inner
+    TRefMut inner   -> return inner
+    TRefLt _ inner  -> return inner
+    TRefMutLt _ inner -> return inner
+    _               -> throwError $ "Cannot dereference a value of type " ++ printTree t
 infer (EMatch e arms) = do
   scrutTy <- infer e
   case arms of
@@ -216,27 +234,34 @@ checkExhaustive (TPair _ _) pats
 checkExhaustive t _ =
   throwError $ "Cannot match on type " ++ printTree t
 
+-- | True if the pattern is a wildcard (PVar), which matches any value.
 isWild :: Pat -> Bool
 isWild (PVar _) = True
 isWild _        = False
 
+-- | True if the pattern is an Ok(_) constructor pattern.
 isOkPat :: Pat -> Bool
 isOkPat (POk _) = True
 isOkPat _       = False
 
+-- | True if the pattern is an Err(_) constructor pattern.
 isErrPat :: Pat -> Bool
 isErrPat (PErr _) = True
 isErrPat _        = False
 
+-- | True if the pattern is a pair constructor pattern (_, _).
 isPairPat :: Pat -> Bool
 isPairPat (PPair _ _) = True
 isPairPat _           = False
 
+-- | Check both operands are int; return TInt.
 arithmetic :: Exp -> Exp -> Tc Type
 arithmetic e1 e2 = check e1 TInt >> check e2 TInt >> return TInt
 
+-- | Check both operands are bool; return TBool.
 logic :: Exp -> Exp -> Tc Type
 logic e1 e2 = check e1 TBool >> check e2 TBool >> return TBool
 
+-- | Check both operands are int; return TBool.
 comparison :: Exp -> Exp -> Tc Type
 comparison e1 e2 = check e1 TInt >> check e2 TInt >> return TBool

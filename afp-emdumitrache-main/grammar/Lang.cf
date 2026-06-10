@@ -14,8 +14,12 @@ TLight.   Type1 ::= "Light" ;
 TList.    Type1 ::= "[" Type "]" ;
 TResult.  Type1 ::= "Result" "<" Type ">" ;
 TPair.    Type1 ::= "(" Type "," Type ")" ;
-TRefMut.  Type1 ::= "&" "mut" Type ;
-TRef.     Type1 ::= "&" Type ;
+TRefMut.   Type1 ::= "&" "mut" Type ;
+TRef.      Type1 ::= "&" Type ;
+
+-- Explicit lifetime-annotated reference types (Phase 4A)
+TRefMutLt. Type1 ::= "&" "mut" "'" Ident Type ;
+TRefLt.    Type1 ::= "&" "'" Ident Type ;
 
 _. Type2 ::= "(" Type ")" ;
 _. Type1 ::= Type2 ;
@@ -46,7 +50,13 @@ SIf.          Stmt ::= "if" Exp Block ;
 SIfElse.      Stmt ::= "if" Exp Block "else" Block ;
 SWhile.       Stmt ::= "while" Exp Block ;
 SFun.         Stmt ::= "fn" Ident "(" [Param] ")" "->" Type Block ;
+SFunLt.       Stmt ::= "fn" Ident "<" [Lifetime] ">" "(" [Param] ")" "->" Type Block ;
+SSpawn.       Stmt ::= "spawn" Block ;
 SExpr.        Stmt ::= Exp ;
+
+-- Lifetime names (Phase 4A): 'a  parsed as keyword ' followed by identifier
+MkLifetime. Lifetime ::= "'" Ident ;
+separator nonempty Lifetime "," ;
 
 -- EXPRESSIONS -----------------------------------------------------------------
 

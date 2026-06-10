@@ -37,13 +37,23 @@ instance Print Value where
 -- | True if values of this type are implicitly copyable (read without consuming).
 -- int and bool are Copy; Light, lists, Result, and pairs (with non-Copy components) are affine.
 isCopyable :: Type -> Bool
-isCopyable TLight      = False
-isCopyable (TList _)   = False
-isCopyable (TResult t) = isCopyable t
-isCopyable (TPair t u) = isCopyable t && isCopyable u
-isCopyable (TRef _)    = True
-isCopyable (TRefMut _) = False
-isCopyable _           = True
+isCopyable TLight         = False
+isCopyable (TList _)      = False
+isCopyable (TResult t)    = isCopyable t
+isCopyable (TPair t u)    = isCopyable t && isCopyable u
+isCopyable (TRef _)       = True
+isCopyable (TRefLt _ _)   = True
+isCopyable (TRefMut _)    = False
+isCopyable (TRefMutLt _ _) = False
+isCopyable _              = True
+
+-- | Strip explicit lifetime annotations from reference types.
+-- At call sites the caller's '&x' has type 'TRef T'; a parameter declared
+-- '&'a T' (= 'TRefLt lt T') must accept it after erasure.
+eraseLifetime :: Type -> Type
+eraseLifetime (TRefLt _ t)    = TRef t
+eraseLifetime (TRefMutLt _ t) = TRefMut t
+eraseLifetime t               = t
 
 -- | Multi-parameter function closure (params + body block).
 data Closure = Fun [Param] Block
@@ -52,7 +62,9 @@ instance Print Closure where
   prt _ _ = doc (showString "<closure>")
 
 -- | Multi-parameter function type closure (param list + return type).
-data TClosure = TFun [Param] Type
+-- TFunLt carries lifetime parameter names so the call site can resolve borrow sources.
+data TClosure = TFun   [Param] Type
+              | TFunLt [Ident] [Param] Type
   deriving (Show, Eq)
 
 instance Print TClosure where

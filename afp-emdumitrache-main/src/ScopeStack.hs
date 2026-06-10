@@ -11,6 +11,7 @@ module ScopeStack
   , updateStack
   , topBindings
   , updateSkipping
+  , traverseWithKey
   ) where
 
 import qualified Data.Map.Strict as Map
@@ -63,6 +64,14 @@ updateSkipping skip x v (ScopeStack fs) = ScopeStack (go fs)
 topBindings :: ScopeStack a -> Map.Map Ident a
 topBindings (ScopeStack (f:_)) = f
 topBindings (ScopeStack [])    = Map.empty
+
+-- | Van Laarhoven Traversal over all (key, value) pairs across all scope frames.
+-- With Const applicative, acts as a structural fold; with Identity, maps uniformly.
+-- Visits frames from innermost to outermost; each (k, v) pair visited once per frame.
+traverseWithKey :: Applicative f
+                => (Ident -> a -> f a) -> ScopeStack a -> f (ScopeStack a)
+traverseWithKey f (ScopeStack frames) =
+  ScopeStack <$> traverse (Map.traverseWithKey f) frames
 
 -- | Update the first occurrence of a name (innermost scope first).
 updateStack :: Ident -> a -> ScopeStack a -> ScopeStack a

@@ -144,11 +144,13 @@ runBody (Block [])           = return VUnit
 runBody (Block [SExpr e])    = interp e
 runBody (Block (s : rest))   = S.interp s >> runBody (Block rest)
 
+-- | Safe list element access; runtime error if index is out of bounds.
 listGet :: Int -> [Value] -> Eval Value
 listGet i vs = case drop i vs of
   (v:_) -> return v
   []    -> throwError $ "List index " ++ show i ++ " out of bounds"
 
+-- | Evaluate two expressions and apply an integer binary operator.
 arithm :: Exp -> Exp -> (Integer -> Integer -> Integer) -> Eval Value
 arithm e1 e2 f = do
   v1 <- interp e1; v2 <- interp e2
@@ -156,6 +158,7 @@ arithm e1 e2 f = do
     (VInt a, VInt b) -> return $ VInt (f a b)
     _                -> throwError "Arithmetic on non-integers"
 
+-- | Evaluate two expressions and apply a boolean binary operator.
 logicOp :: Exp -> Exp -> (Bool -> Bool -> Bool) -> Eval Value
 logicOp e1 e2 f = do
   v1 <- interp e1; v2 <- interp e2
@@ -163,6 +166,7 @@ logicOp e1 e2 f = do
     (VBool a, VBool b) -> return $ VBool (f a b)
     _                  -> throwError "Boolean operation on non-booleans"
 
+-- | Structural equality for int, bool, and Light values.
 eqOp :: Exp -> Exp -> Eval Value
 eqOp e1 e2 = do
   v1 <- interp e1; v2 <- interp e2
@@ -177,6 +181,7 @@ eqOp e1 e2 = do
     (VLightGreen,  _)            -> return $ VBool False
     _                            -> throwError "Cannot compare values of different types"
 
+-- | Evaluate two expressions and apply an integer comparison operator.
 cmpOp :: Exp -> Exp -> (Integer -> Integer -> Bool) -> Eval Value
 cmpOp e1 e2 f = do
   v1 <- interp e1; v2 <- interp e2

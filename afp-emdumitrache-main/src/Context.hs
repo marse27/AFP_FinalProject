@@ -63,15 +63,19 @@ data EvalCtx = EvalCtx
   , _evalFuns :: Map.Map Ident Closure
   }
 
+-- | Lens into the variable scope stack of a type-checker context.
 tcVars :: Lens' TcCtx (ScopeStack VarInfo)
 tcVars f ctx = (\v -> ctx { _tcVars = v }) <$> f (_tcVars ctx)
 
+-- | Lens into the function-type map of a type-checker context.
 tcFuns :: Lens' TcCtx (Map.Map Ident TClosure)
 tcFuns f ctx = (\v -> ctx { _tcFuns = v }) <$> f (_tcFuns ctx)
 
+-- | Lens into the variable scope stack of an interpreter context.
 evalVars :: Lens' EvalCtx (ScopeStack Value)
 evalVars f ctx = (\v -> ctx { _evalVars = v }) <$> f (_evalVars ctx)
 
+-- | Lens into the function-closure map of an interpreter context.
 evalFuns :: Lens' EvalCtx (Map.Map Ident Closure)
 evalFuns f ctx = (\v -> ctx { _evalFuns = v }) <$> f (_evalFuns ctx)
 

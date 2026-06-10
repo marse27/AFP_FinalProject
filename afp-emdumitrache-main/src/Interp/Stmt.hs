@@ -2,6 +2,7 @@
 -- Phase 0: mutable assignment, block scoping, control flow, functions.
 -- Phase 2A: list mutation (SIndexAssign, SPush, SInsert, SRemove).
 -- Phase 3B: SDerefAssign writes through a mutable reference via updateSkipping.
+-- Phase 4B: SSpawn runs the block synchronously (type checker enforces Copy captures).
 module Interp.Stmt (interp) where
 
 import Control.Monad.Except (throwError)
@@ -101,6 +102,9 @@ interp (SWhile cond body) = loop
         _           -> throwError "While condition must be a boolean"
 interp (SFun f params _ body) =
   modify (over evalFuns (Map.insert f (Fun params body)))
+interp (SFunLt f _ params _ body) =
+  modify (over evalFuns (Map.insert f (Fun params body)))
+interp (SSpawn body) = interpBlock body
 interp (SExpr e) = E.interp e >> return ()
 
 -- | Run a block in a fresh inner scope; mutations to outer vars persist.
