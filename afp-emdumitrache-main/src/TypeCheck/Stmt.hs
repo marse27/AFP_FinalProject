@@ -27,11 +27,12 @@ import qualified Data.Set        as Set
 import Lang.Abs   (Arm (..), Block (..), Exp (..), Ident, Lifetime (..), Param (..), Stmt (..), Type (..))
 import Lang.Print (printTree)
 
-import Context    (TcCtx, VarInfo (..), tcVars, tcFuns, view, over, set)
-import ScopeStack (lookupStack, insertTop, updateStack, push, pop, topBindings)
+import Context         (TcCtx, VarInfo (..), tcVars, tcFuns, view, over)
+import ScopeStack      (lookupStack, insertTop, updateStack, push, pop, topBindings)
 import qualified ScopeStack as SS
-import Tc         (Tc)
-import Value      (TClosure (..), eraseLifetime, isCopyable, paramType)
+import Tc              (Tc)
+import Value           (TClosure (..), eraseLifetime, isCopyable, paramType)
+import TypeCheck.Merge (mergeContexts)
 import qualified TypeCheck.Expr as E
 
 -- These are the special let-cases.
@@ -346,6 +347,10 @@ infer (SFunLt f lts params retTy body) = do
       "Function " ++ printTree f ++ " return type uses undeclared lifetime '" ++ printTree lt
     TRefMutLt lt _ -> unless (lt `elem` ltNames) $ throwError $
       "Function " ++ printTree f ++ " return type uses undeclared lifetime '" ++ printTree lt
+    TRef _         -> throwError $
+      "Function " ++ printTree f ++ " returns a plain reference with no lifetime; use &'a T"
+    TRefMut _      -> throwError $
+      "Function " ++ printTree f ++ " returns a plain mutable reference with no lifetime; use &mut 'a T"
     _ -> return ()
   mapM_ (checkParamLifetime f ltNames) params
   modify (over tcFuns (Map.insert f (TFunLt ltNames params retTy)))
@@ -657,32 +662,6 @@ mentionedExp _                = Set.empty
 -- The pattern itself is ignored here, because this function only checks which variables are used later for non-lexical lifetimes.
 mentionedArm :: Arm -> Set.Set Ident
 mentionedArm (MatchArm _ body) = mentionedExp body
-
--- Here we combine the contexts produced by the two branches of an if-else.
--- A variable is considered owned afterwards only if it is still owned after both branches.
--- For active borrows, we keep the smaller count because a borrow that exists in only one branch cannot be assumed to exist after.
--- Function information from the two resulting contexts is also combined.
-mergeContexts :: TcCtx -> TcCtx -> TcCtx
-mergeContexts ctx1 ctx2 =
-  set tcVars (SS.mergeWith mergeVarInfo (view tcVars ctx1) (view tcVars ctx2))
-  $ set tcFuns (Map.union (view tcFuns ctx1) (view tcFuns ctx2))
-  $ ctx1
-
--- Here we combine the information stored for the same variable after checking both branches.
--- The variable keeps ownership only when both branches keep it.
--- Borrow counts use the smaller value, because we can only be sure a borrow count is at least as large as the minimum of the two branches.
--- The borrowed source is kept only when it is the same in both branches.
-mergeVarInfo :: VarInfo -> VarInfo -> VarInfo
-mergeVarInfo vi1 vi2 = VarInfo
-  { varType       = varType vi1
-  , varMut        = varMut vi1
-  , varOwned      = varOwned vi1 && varOwned vi2
-  , varBorrows    = min (varBorrows vi1) (varBorrows vi2)
-  , varMutBorrows = min (varMutBorrows vi1) (varMutBorrows vi2)
-  , varBorrowOf   = if varBorrowOf vi1 == varBorrowOf vi2
-                    then varBorrowOf vi1
-                    else Nothing
-  }
 
 -- Here we check that a while loop does not move a non-copyable variable that was declared outside the loop. 
 -- A loop may run more than once, so a value moved during the first iteration would no longer be available during the next iteration. 

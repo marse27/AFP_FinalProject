@@ -34,6 +34,7 @@ library afp-lib
         Interp.Expr
         Interp.Stmt
         Interp.Prog
+        TypeCheck.Merge
         TypeCheck.Expr
         TypeCheck.Stmt
         TypeCheck.Prog

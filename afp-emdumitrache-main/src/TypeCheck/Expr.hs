@@ -8,17 +8,18 @@ module TypeCheck.Expr (infer, check) where
 
 import Control.Monad        (unless, when)
 import Control.Monad.Except (throwError)
-import Control.Monad.State  (gets, modify)
+import Control.Monad.State  (get, gets, modify, put)
 
 import qualified Data.Map.Strict as Map
 
 import Lang.Abs   (Arm (..), Exp (..), Pat (..), Type (..))
 import Lang.Print (printTree)
 
-import Context    (VarInfo (..), tcVars, tcFuns, view, over)
-import ScopeStack (lookupStack, insertTop, updateStack, push, pop)
-import Tc         (Tc)
-import Value      (TClosure (..), eraseLifetime, isCopyable, paramType)
+import Context         (TcCtx, VarInfo (..), tcVars, tcFuns, view, over)
+import ScopeStack      (lookupStack, insertTop, updateStack, push, pop)
+import Tc              (Tc)
+import Value           (TClosure (..), eraseLifetime, isCopyable, paramType)
+import TypeCheck.Merge (mergeContexts)
 
 -- Here we check that an expression has the type that is expected.
 -- First the actual type of the expression is inferred.
@@ -71,8 +72,13 @@ infer (EGeq e1 e2)    = comparison e1 e2
 -- The first branch gives the result type, and the else branch must have the same type.
 infer (EIf c t f) = do
   check c TBool
+  ctxBefore <- get
   ty <- infer t
+  ctxAfterTrue <- get
+  put ctxBefore
   check f ty
+  ctxAfterFalse <- get
+  put (mergeContexts ctxAfterTrue ctxAfterFalse)
   return ty
 
 -- Here we handle a local let-expression like let x = e in body.
@@ -154,6 +160,8 @@ infer (EIndex x i) = do
     Just vi -> do
       unless (varOwned vi) $
         throwError $ "Value of " ++ printTree x ++ " used after being moved"
+      when (varMutBorrows vi > 0) $
+        throwError $ "Cannot read " ++ printTree x ++ "[i]: list has an active mutable borrow"
       case varType vi of
         TList elemT -> check i TInt >> return elemT
         t           -> throwError $ "Cannot index a value of type " ++ printTree t
@@ -239,8 +247,17 @@ infer (EMatch e arms) = do
     [] -> throwError "Empty match expression"
     (first : rest) -> do
       checkExhaustive scrutTy (map getArmPat arms)
+      ctxBefore <- get
       t <- inferArm scrutTy first
-      mapM_ (\arm -> checkArmType scrutTy arm t) rest
+      ctxAfterFirst <- get
+      otherCtxs <- mapM (\arm -> do
+        put ctxBefore
+        actual <- inferArm scrutTy arm
+        if actual == t
+          then get
+          else throwError $ "Match arm has type " ++ printTree actual ++
+                            " but expected " ++ printTree t) rest
+      put (foldr mergeContexts ctxAfterFirst otherCtxs)
       return t
 
 -- Gets only the pattern part from a match arm.
