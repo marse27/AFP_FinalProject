@@ -18,7 +18,7 @@ module TypeCheck.Stmt (infer, mentionedVars, releaseExpiredBorrows) where
 
 import Control.Monad        (unless, when)
 import Control.Monad.Except (throwError)
-import Control.Monad.State  (gets, modify)
+import Control.Monad.State  (get, gets, modify, put)
 import Data.Functor.Const   (Const (..))
 import Data.List            (findIndex)
 import Data.Maybe           (isJust)
@@ -28,7 +28,7 @@ import qualified Data.Set        as Set
 import Lang.Abs   (Arm (..), Block (..), Exp (..), Ident, Lifetime (..), Param (..), Stmt (..), Type (..))
 import Lang.Print (printTree)
 
-import Context    (VarInfo (..), tcVars, tcFuns, view, over)
+import Context    (TcCtx, VarInfo (..), tcVars, tcFuns, view, over, set)
 import ScopeStack (lookupStack, insertTop, updateStack, push, pop, topBindings)
 import qualified ScopeStack as SS
 import Tc         (Tc)
@@ -46,6 +46,13 @@ infer (SLetImm r (ERefMut x)) = letMutBorrow r x False
 infer (SLetMut r (ERefMut x)) = letMutBorrow r x True
 infer (SLetImm r (ECall f args)) = callAndBind r f args False
 infer (SLetMut r (ECall f args)) = callAndBind r f args True
+
+-- Here we handle assigning a reference variable to a new variable. 
+-- Immutable references can be copied, so both variables keep borrowing from the same original value. 
+-- Mutable references cannot be copied, so the borrow is moved to the new variable. 
+-- These cases come before the normal let-statements so the borrowed variable is remembered correctly.
+infer (SLetImm s (EVar r)) = copyOrMoveRef s r False
+infer (SLetMut s (EVar r)) = copyOrMoveRef s r True
 
 -- Here we handle creating an immutable variable.
 -- The expression on the right is checked first, then the new variable is added as immutable, owned, and not borrowing anything.
@@ -109,6 +116,59 @@ infer (SAssign r (ERefMut x)) = do
       releaseVarBorrow rvi
       modify (over tcVars (updateStack x xvi { varMutBorrows = varMutBorrows xvi + 1 }))
       modify (over tcVars (updateStack r rvi { varOwned = True, varBorrowOf = Just x }))
+
+-- Here we handle assigning one variable to another existing variable, like s = r. 
+-- Both variables must exist, s must be mutable and not currently borrowed, and both variables must have the same type. 
+-- If r is an immutable reference, the reference is copied and another borrow of the same original value is created. 
+-- If r is a mutable reference, the borrow is moved from r to s.
+infer (SAssign s (EVar r)) = do
+  vars <- gets (view tcVars)
+  case (lookupStack s vars, lookupStack r vars) of
+    (Nothing, _) -> throwError $ "Variable " ++ printTree s ++ " is not in scope"
+    (_, Nothing) -> throwError $ "Variable " ++ printTree r ++ " is not bound"
+    (Just svi, Just rvi) -> do
+      unless (varMut svi) $ throwError $
+        "Cannot assign to immutable variable " ++ printTree s
+      when (varBorrows svi > 0 || varMutBorrows svi > 0) $ throwError $
+        "Cannot assign to " ++ printTree s ++ ": value is borrowed"
+      unless (varType svi == varType rvi) $ throwError $
+        "Type mismatch in assignment: expected " ++ printTree (varType svi) ++
+        " but got " ++ printTree (varType rvi)
+      if isImmRefType (varType rvi)
+        then do
+          -- Here we copy an immutable reference. 
+          -- The old borrow stored in s is released first. 
+          -- Then s starts borrowing from the same variable as r, and that variable's immutable borrow count is increased.
+          releaseVarBorrow svi
+          case varBorrowOf rvi of
+            Nothing ->
+              modify (over tcVars (updateStack s svi { varOwned = True, varBorrowOf = Nothing }))
+            Just x -> do
+              xvars <- gets (view tcVars)
+              case lookupStack x xvars of
+                Nothing  -> throwError $ "Variable " ++ printTree x ++ " is not in scope"
+                Just xvi -> do
+                  when (varMutBorrows xvi > 0) $ throwError $
+                    "Cannot copy borrow of " ++ printTree x ++ ": already mutably borrowed"
+                  modify (over tcVars (updateStack x xvi { varBorrows = varBorrows xvi + 1 }))
+                  modify (over tcVars (updateStack s svi { varOwned = True, varBorrowOf = Just x }))
+        else if isMutRefType (varType rvi)
+          then do
+            -- Here we move a mutable reference. 
+            -- The old borrow stored in s is released first. 
+            -- Then r loses ownership of the reference and s takes over the borrow from the same original variable.
+            unless (varOwned rvi) $ throwError $
+              "Value of " ++ printTree r ++ " used after being moved"
+            releaseVarBorrow svi
+            let borrowSrc = varBorrowOf rvi
+            modify (over tcVars (updateStack r rvi { varOwned = False, varBorrowOf = Nothing }))
+            modify (over tcVars (updateStack s svi { varOwned = True, varBorrowOf = borrowSrc }))
+          else do
+            -- Here we handle normal assignment between non-reference values. 
+            -- The value of r is checked against the expected type, the old borrow stored in s is released, and s owns the new value.
+            E.check (EVar r) (varType svi)
+            releaseVarBorrow svi
+            modify (over tcVars (updateStack s svi { varOwned = True, varBorrowOf = Nothing }))
 
 -- Here we handle assigning a new value to an existing variable, like x = e.
 -- The variable x must exist and must be mutable.
@@ -217,20 +277,31 @@ infer (SIf cond body) = do
   E.check cond TBool
   checkBlock body
 
--- Here we handle an if-else statement. 
--- The condition must be a boolean. 
+-- Here we handle an if-else statement.
+-- The condition must be a boolean.
 -- Both branches are checked as separate blocks, because each branch has its own local scope.
+-- Each branch is checked independently from the same pre-branch context.
+-- The results are merged conservatively: a variable is owned after the if-else only if it is owned after both branches.
 infer (SIfElse cond tbody fbody) = do
   E.check cond TBool
+  ctxBefore <- get
   checkBlock tbody
+  ctxAfterTrue <- get
+  put ctxBefore
   checkBlock fbody
+  ctxAfterFalse <- get
+  put (mergeContexts ctxAfterTrue ctxAfterFalse)
 
--- Here we handle a while loop. 
--- The condition must be a boolean. 
+-- Here we handle a while loop.
+-- The condition must be a boolean.
 -- The loop body is checked as a block, so variables declared inside it do not escape outside the loop.
+-- Moving a non-copyable outer variable inside the body is rejected: the second iteration would reuse a moved value.
 infer (SWhile cond body) = do
   E.check cond TBool
+  ctxBefore <- get
   checkBlock body
+  ctxAfter <- get
+  checkNoLoopMoves ctxBefore ctxAfter
 
 -- Here we handle declaring a normal function.
 -- Normal functions are not allowed to return references, because there is no lifetime information that proves the reference would stay valid.
@@ -261,6 +332,7 @@ infer (SFunLt f lts params retTy body) = do
     TRefMutLt lt _ -> unless (lt `elem` ltNames) $ throwError $
       "Function " ++ printTree f ++ " return type uses undeclared lifetime '" ++ printTree lt
     _ -> return ()
+  mapM_ (checkParamLifetime f ltNames) params
   modify (over tcFuns (Map.insert f (TFunLt ltNames params retTy)))
   modify (over tcVars push)
   mapM_ bindParam params
@@ -383,9 +455,19 @@ checkBody retTy (Block (s : rest)) = do
   releaseExpiredBorrows (mentionedVars rest)
   checkBody retTy (Block rest)
 
--- Here we add a function parameter to the current scope. 
--- Immutable parameters are added as immutable variables. 
--- Mutable parameters are added as mutable variables. 
+-- Here we check the lifetimes used by a function parameter. 
+-- If the parameter is an immutable or mutable reference with a lifetime, that lifetime must have been declared in the function header. 
+checkParamLifetime :: Ident -> [Ident] -> Param -> Tc ()
+checkParamLifetime f ltNames p = case paramType p of
+  TRefLt lt _    -> unless (lt `elem` ltNames) $ throwError $
+    "Function " ++ printTree f ++ " parameter uses undeclared lifetime '" ++ printTree lt
+  TRefMutLt lt _ -> unless (lt `elem` ltNames) $ throwError $
+    "Function " ++ printTree f ++ " parameter uses undeclared lifetime '" ++ printTree lt
+  _              -> return ()
+
+-- Here we add a function parameter to the current scope.
+-- Immutable parameters are added as immutable variables.
+-- Mutable parameters are added as mutable variables.
 -- In both cases, the parameter starts as owned and not borrowing anything.
 bindParam :: Param -> Tc ()
 bindParam (ParamImm x t) = modify (over tcVars (insertTop x (VarInfo t False True 0 0 Nothing)))
@@ -560,3 +642,104 @@ mentionedExp _                = Set.empty
 -- The pattern itself is ignored here, because this function only checks which variables are used later for non-lexical lifetimes.
 mentionedArm :: Arm -> Set.Set Ident
 mentionedArm (MatchArm _ body) = mentionedExp body
+
+-- Here we combine the contexts produced by the two branches of an if-else. 
+-- A variable is considered owned afterwards only if it is still owned after both branches. 
+-- For active borrows, we keep the larger count because either branch may have been executed at runtime. 
+-- Function information from the two resulting contexts is also combined.
+mergeContexts :: TcCtx -> TcCtx -> TcCtx
+mergeContexts ctx1 ctx2 =
+  set tcVars (SS.mergeWith mergeVarInfo (view tcVars ctx1) (view tcVars ctx2))
+  $ set tcFuns (Map.union (view tcFuns ctx1) (view tcFuns ctx2))
+  $ ctx1
+
+-- Here we combine the information stored for the same variable after checking both branches. 
+-- The variable keeps ownership only when both branches keep it. 
+-- Borrow counts use the larger value so that a borrow that may still exist after either branch is not accidentally forgotten. 
+-- The borrowed source is kept only when it is the same in both branches.
+mergeVarInfo :: VarInfo -> VarInfo -> VarInfo
+mergeVarInfo vi1 vi2 = VarInfo
+  { varType       = varType vi1
+  , varMut        = varMut vi1
+  , varOwned      = varOwned vi1 && varOwned vi2
+  , varBorrows    = min (varBorrows vi1) (varBorrows vi2)
+  , varMutBorrows = min (varMutBorrows vi1) (varMutBorrows vi2)
+  , varBorrowOf   = if varBorrowOf vi1 == varBorrowOf vi2
+                    then varBorrowOf vi1
+                    else Nothing
+  }
+
+-- Here we check that a while loop does not move a non-copyable variable that was declared outside the loop. 
+-- A loop may run more than once, so a value moved during the first iteration would no longer be available during the next iteration. 
+-- The traversal collects all owned, non-copyable variables that existed before the loop and then checks whether the loop body moved any of them.
+checkNoLoopMoves :: TcCtx -> TcCtx -> Tc ()
+checkNoLoopMoves ctxBefore ctxAfter = do
+  let varsBefore = view tcVars ctxBefore
+      varsAfter  = view tcVars ctxAfter
+  let candidates = getConst $
+        SS.traverseWithKey
+          (\x vi -> Const $
+            if varOwned vi && not (isCopyable (varType vi))
+            then [(x, vi)]
+            else [])
+          varsBefore
+  mapM_ (checkNotMoved varsAfter) candidates
+  where
+    checkNotMoved varsAfter (x, _) =
+      case lookupStack x varsAfter of
+        Just vi | not (varOwned vi) -> throwError $
+          "Cannot move non-Copy variable '" ++ printTree x ++
+          "' inside a while loop: value would be invalid on the second iteration"
+        _ -> return ()
+
+
+-- Checks whether a type is an immutable reference. 
+-- This includes references with and without an explicit lifetime.
+-- Immutable references can be copied.
+isImmRefType :: Type -> Bool
+isImmRefType (TRef _)     = True
+isImmRefType (TRefLt _ _) = True
+isImmRefType _            = False
+
+-- Checks whether a type is a mutable reference. 
+-- This includes references with and without an explicit lifetime. 
+-- Mutable references cannot be copied and must be moved instead.
+isMutRefType :: Type -> Bool
+isMutRefType (TRefMut _)     = True
+isMutRefType (TRefMutLt _ _) = True
+isMutRefType _               = False
+
+-- Here we handle creating a new variable from another variable, like let s = r. 
+-- If r is an immutable reference, the reference is copied and both variables keep borrowing from the same original value. 
+-- If r is a mutable reference, the reference is moved from r to s. 
+-- For normal values, the usual ownership rules are used.
+copyOrMoveRef :: Ident -> Ident -> Bool -> Tc ()
+copyOrMoveRef s r isMut = do
+  vars <- gets (view tcVars)
+  case lookupStack r vars of
+    Nothing -> throwError $ "Variable " ++ printTree r ++ " is not bound"
+    Just vi
+      | isImmRefType (varType vi) -> do
+          unless (varOwned vi) $ throwError $
+            "Value of " ++ printTree r ++ " used after being moved"
+          case varBorrowOf vi of
+            Nothing ->
+              modify (over tcVars (insertTop s (VarInfo (varType vi) isMut True 0 0 Nothing)))
+            Just x -> do
+              xvars <- gets (view tcVars)
+              case lookupStack x xvars of
+                Nothing  -> throwError $ "Variable " ++ printTree x ++ " is not in scope"
+                Just xvi -> do
+                  when (varMutBorrows xvi > 0) $ throwError $
+                    "Cannot copy borrow of " ++ printTree x ++ ": already mutably borrowed"
+                  modify (over tcVars (updateStack x xvi { varBorrows = varBorrows xvi + 1 }))
+                  modify (over tcVars (insertTop s (VarInfo (varType vi) isMut True 0 0 (Just x))))
+      | isMutRefType (varType vi) -> do
+          unless (varOwned vi) $ throwError $
+            "Value of " ++ printTree r ++ " used after being moved"
+          let borrowSrc = varBorrowOf vi
+          modify (over tcVars (updateStack r vi { varOwned = False, varBorrowOf = Nothing }))
+          modify (over tcVars (insertTop s (VarInfo (varType vi) isMut True 0 0 borrowSrc)))
+      | otherwise -> do
+          t <- E.infer (EVar r)
+          modify (over tcVars (insertTop s (VarInfo t isMut True 0 0 Nothing)))

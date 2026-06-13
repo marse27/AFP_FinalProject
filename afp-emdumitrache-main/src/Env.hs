@@ -6,17 +6,21 @@ import qualified Data.Map as Map
 
 import Lang.Abs ( Ident )
 
--- | An environment mapping identifiers to values of type @a@.
+-- This is a simple environment. 
+-- It connects variable names to values.
 type Env a = Map.Map Ident a
 
--- | Empty environment with no bindings.
+-- Creates an empty environment with no stored variables.
 empty :: Env a
 empty = Map.empty
 
--- | Look up an identifier; returns Nothing if not present.
+-- Looks for a variable in the environment. 
+-- If the variable exists, its value is returned. 
+-- If it does not exist, the result is Nothing.
 find :: Ident -> Env a -> Maybe a
 find = Map.lookup
 
--- | Extend the environment with a new binding.
+-- Adds a new variable and its value to the environment. 
+-- If the variable already exists, its old value is replaced.
 bind :: Ident -> a -> Env a -> Env a
 bind = Map.insert

@@ -4,6 +4,7 @@
 module InterpTests where
 
 import Test.Hspec
+import Data.Either (isLeft)
 import Run   (run)
 import Value (Value (..))
 
@@ -12,6 +13,14 @@ interpTest :: String -> Value -> Spec
 interpTest input expected =
   it (show input) $
     run input `shouldBe` Right expected
+
+-- | Assert that the program produces a runtime error containing the given substring.
+interpErrorTest :: String -> String -> Spec
+interpErrorTest input substr =
+  it (show input ++ " [runtime error contains " ++ show substr ++ "]") $
+    case run input of
+      Left err -> err `shouldContain` substr
+      Right _  -> expectationFailure "Expected a runtime error"
 
 test :: IO ()
 test = hspec $ do
@@ -36,9 +45,7 @@ test = hspec $ do
     interpTest "let mut x = 0; x = x + 1; x"        (VInt 1)
 
   describe "Interpreter Phase 0: block scoping" $ do
-    -- inner y is invisible outside block; mutation to outer x persists
     interpTest "let mut x = 0; { let y = 5; x = y }; x"  (VInt 5)
-    -- block that does not mutate outer scope
     interpTest "let x = 3; { let y = 10 }; x"             (VInt 3)
 
   describe "Interpreter Phase 0: if / if-else statements" $ do
@@ -124,8 +131,6 @@ test = hspec $ do
                (VInt 1)
 
   describe "Interpreter Phase 2B: Light still non-Copy, list still non-Copy (type-checked)" $ do
-    -- these programs reach the interpreter only after type-checking, so we just
-    -- verify the copy-primitive path runs correctly end-to-end
     interpTest "let x = 42; x + x"   (VInt 84)
     interpTest "let x = true; if x then 1 else 0"  (VInt 1)
 
@@ -224,3 +229,20 @@ test = hspec $ do
     interpTest "let x = 5; spawn { let y = x }; x"      (VInt 5)
     interpTest "let b = true; spawn { let c = b }; b"   (VBool True)
     interpTest "let mut x = 0; spawn { x = 1 }; x"      (VInt 1)
+
+  describe "Interpreter: division by zero produces runtime error" $ do
+    interpErrorTest "10 / 0"   "Division by zero"
+    interpErrorTest "0 / 0"    "Division by zero"
+    interpTest      "10 / 2"   (VInt 5)
+    interpTest      "0 / 1"    (VInt 0)
+
+  describe "Interpreter: negative list indices produce runtime error" $ do
+    interpErrorTest "let mut xs = [1, 2, 3]; xs[0-1]"           "cannot be negative"
+    interpErrorTest "let mut xs = [1, 2, 3]; xs[0-1] = 9; 0"   "cannot be negative"
+    interpErrorTest "let mut xs = [1, 2, 3]; xs.insert(0-1, 9); 0" "cannot be negative"
+    interpErrorTest "let mut xs = [1, 2, 3]; xs.remove(0-1); 0"    "cannot be negative"
+    interpTest      "let mut xs = [10, 20, 30]; xs[0]"          (VInt 10)
+
+  describe "Interpreter: insert beyond list length is rejected" $ do
+    interpErrorTest "let mut xs = [1, 2, 3]; xs.insert(99, 9); 0" "out of bounds"
+    interpTest      "let mut xs = [1, 2, 3]; xs.insert(3, 4); xs[3]" (VInt 4)

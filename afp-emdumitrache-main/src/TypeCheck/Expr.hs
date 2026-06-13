@@ -169,6 +169,8 @@ infer (ERef x) = do
     Just vi -> do
       unless (varOwned vi) $ throwError $
         "Cannot borrow " ++ printTree x ++ ": value has been moved"
+      when (varMutBorrows vi > 0) $ throwError $
+        "Cannot borrow " ++ printTree x ++ ": already mutably borrowed"
       return (TRef (varType vi))
 
 -- Here we handle creating a mutable borrow like &mut x.
@@ -183,6 +185,10 @@ infer (ERefMut x) = do
         "Cannot borrow " ++ printTree x ++ ": value has been moved"
       unless (varMut vi) $ throwError $
         "Cannot borrow " ++ printTree x ++ " as mutable: variable is not mutable"
+      when (varBorrows vi > 0) $ throwError $
+        "Cannot borrow " ++ printTree x ++ " as mutable: already borrowed"
+      when (varMutBorrows vi > 0) $ throwError $
+        "Cannot borrow " ++ printTree x ++ " as mutable: already mutably borrowed"
       return (TRefMut (varType vi))
 
 -- Here we handle dereferencing a reference variable like *r.

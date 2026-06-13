@@ -86,7 +86,9 @@ interp (SInsert x i e) = do
       idx <- E.interp i
       val <- E.interp e
       case idx of
-        VInt n -> modify (over evalVars (updateStack x (VList (listInsertAt (fromInteger n) val vs))))
+        VInt n -> do
+          newVs <- listInsertAt (fromInteger n) val vs
+          modify (over evalVars (updateStack x (VList newVs)))
         _      -> throwError "List index must be an integer"
     Just _ -> throwError $ show x ++ " is not a list"
 
@@ -177,19 +179,27 @@ interpBlock (Block stmts) = do
 -- If the index exists, a new updated list is returned. 
 -- If the index is outside the list, an error is thrown.
 listSetAt :: Int -> Value -> [Value] -> Eval [Value]
-listSetAt i v vs = case splitAt i vs of
-  (a, _:b) -> return (a ++ v : b)
-  (_, [])  -> throwError $ "List index " ++ show i ++ " out of bounds"
+listSetAt i v vs
+  | i < 0    = throwError $ "List index " ++ show i ++ " cannot be negative"
+  | otherwise = case splitAt i vs of
+      (a, _:b) -> return (a ++ v : b)
+      (_, [])  -> throwError $ "List index " ++ show i ++ " out of bounds"
 
--- Here we insert a value at a specific list index. 
--- The list is split at that position, and the new value is placed between the parts.
-listInsertAt :: Int -> Value -> [Value] -> [Value]
-listInsertAt i v vs = let (a, b) = splitAt i vs in a ++ v : b
+-- Here we insert a value at a specific list index.
+-- The index must be non-negative and at most the current list length (inserting at length appends).
+-- Inserting beyond the end is rejected as an out-of-bounds error.
+listInsertAt :: Int -> Value -> [Value] -> Eval [Value]
+listInsertAt i v vs
+  | i < 0         = throwError $ "List index " ++ show i ++ " cannot be negative"
+  | i > length vs = throwError $ "List index " ++ show i ++ " out of bounds"
+  | otherwise     = let (a, b) = splitAt i vs in return (a ++ v : b)
 
--- Here we remove the value at a specific list index. 
--- If the index exists, a new list without that value is returned. 
+-- Here we remove the value at a specific list index.
+-- If the index exists, a new list without that value is returned.
 -- If the index is outside the list, an error is thrown.
 listRemoveAt :: Int -> [Value] -> Eval [Value]
-listRemoveAt i vs = case splitAt i vs of
-  (a, _:b) -> return (a ++ b)
-  (_, [])  -> throwError $ "List index " ++ show i ++ " out of bounds"
+listRemoveAt i vs
+  | i < 0    = throwError $ "List index " ++ show i ++ " cannot be negative"
+  | otherwise = case splitAt i vs of
+      (a, _:b) -> return (a ++ b)
+      (_, [])  -> throwError $ "List index " ++ show i ++ " out of bounds"

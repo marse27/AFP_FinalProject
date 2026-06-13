@@ -10,7 +10,9 @@ import Value     (Value)
 import qualified TypeCheck.Prog as TC
 import qualified Interp.Prog    as IP
 
--- | Parse and type-check a program; returns its result type.
+-- Here we parse and type-check a program.
+-- If parsing works, the program is checked from an empty type-checking context.
+-- The result is either a type error or the final type of the program.
 infertype :: String -> Either String Type
 infertype input = do
   prog <- parse input
@@ -18,7 +20,10 @@ infertype input = do
     Left err -> Left ("Type error: " ++ err)
     Right t  -> Right t
 
--- | Parse, type-check, and evaluate a program; returns its final value.
+-- Here we parse, type-check, and then run a program.
+-- The program is only evaluated if type checking succeeds.
+-- This means invalid programs are rejected before the interpreter runs.
+-- The result is either a type error, a runtime error, or the final value.
 run :: String -> Either String Value
 run input = do
   prog <- parse input

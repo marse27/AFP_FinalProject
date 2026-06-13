@@ -20,6 +20,8 @@ data Value
     | VRefMut Ident
   deriving (Show, Eq)
 
+-- Here we define how runtime values are printed. 
+-- This is only for displaying results in a readable way, not for evaluating or type-checking the program.
 instance Print Value where
   prt _ (VInt n)       = doc (shows n)
   prt _ (VBool b)      = doc (shows b)
@@ -34,8 +36,10 @@ instance Print Value where
   prt _ (VRef x)       = doc (showString ("&"     ++ printTree x))
   prt _ (VRefMut x)   = doc (showString ("&mut " ++ printTree x))
 
--- | True if values of this type are implicitly copyable (read without consuming).
--- int and bool are Copy; Light, lists, Result, and pairs (with non-Copy components) are affine.
+-- Here we decide which types can be copied instead of moved. 
+-- Integers, booleans, normal references, and unit values are copyable. 
+-- Light values, lists, and mutable references are not copyable. 
+-- Result and pair values are copyable only if the values inside them are copyable.
 isCopyable :: Type -> Bool
 isCopyable TLight         = False
 isCopyable (TList _)      = False
@@ -47,35 +51,40 @@ isCopyable (TRefMut _)    = False
 isCopyable (TRefMutLt _ _) = False
 isCopyable _              = True
 
--- | Strip explicit lifetime annotations from reference types.
--- At call sites the caller's '&x' has type 'TRef T'; a parameter declared
--- '&'a T' (= 'TRefLt lt T') must accept it after erasure.
+-- Here we remove explicit lifetime information from a reference type. 
+-- This is useful when checking arguments, because the runtime reference type is just TRef or TRefMut.
 eraseLifetime :: Type -> Type
 eraseLifetime (TRefLt _ t)    = TRef t
 eraseLifetime (TRefMutLt _ t) = TRefMut t
 eraseLifetime t               = t
 
--- | Multi-parameter function closure (params + body block).
+-- A runtime function closure stores the parameters and the function body. 
+-- The body is saved here and executed later when the function is called.
 data Closure = Fun [Param] Block
 
+-- Closures are printed as a placeholder because showing the whole function body would not be useful as a runtime result.
 instance Print Closure where
   prt _ _ = doc (showString "<closure>")
 
--- | Multi-parameter function type closure (param list + return type).
--- TFunLt carries lifetime parameter names so the call site can resolve borrow sources.
+-- A type-level function closure stores the function's parameter types and return type for the type checker. 
+-- TFun is for normal functions. 
+-- TFunLt is for functions with explicit lifetimes.
 data TClosure = TFun   [Param] Type
               | TFunLt [Ident] [Param] Type
   deriving (Show, Eq)
 
+-- Function types are printed as a placeholder because they are internal type-checker information.
 instance Print TClosure where
   prt _ _ = doc (showString "<fn-type>")
 
--- | Extract the declared identifier from a parameter.
+-- Gets the name of a function parameter. 
+-- Mutable and immutable parameters both store their name in the same place.
 paramIdent :: Param -> Ident
 paramIdent (ParamImm x _) = x
 paramIdent (ParamMut  x _) = x
 
--- | Extract the declared type from a parameter.
+-- Gets the type of a function parameter.
+-- Mutable and immutable parameters both store their type in the same place.
 paramType :: Param -> Type
 paramType (ParamImm _ t) = t
 paramType (ParamMut  _ t) = t

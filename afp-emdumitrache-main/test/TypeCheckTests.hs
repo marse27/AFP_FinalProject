@@ -8,19 +8,19 @@ import Data.Either (isLeft)
 import Run       (infertype)
 import Lang.Abs  (Type (..))
 
--- | Assert that the program type-checks to the given type.
+-- Assert that the program type-checks to the given type.
 tcTest :: String -> Type -> Spec
 tcTest input expected =
   it (show input) $
     infertype input `shouldBe` Right expected
 
--- | Assert that the program is rejected by the type checker.
+-- Assert that the program is rejected by the type checker.
 tcErrorTest :: String -> Spec
 tcErrorTest input =
   it (show input ++ " [should fail]") $
     infertype input `shouldSatisfy` isLeft
 
--- | Assert that the type error message contains the given substring.
+-- Assert that the type error message contains the given substring.
 tcMsgTest :: String -> String -> Spec
 tcMsgTest input substr =
   it (show input ++ " [error contains " ++ show substr ++ "]") $
@@ -296,6 +296,45 @@ test = hspec $ do
     tcTest "fn set_red(mut light: &mut Light) -> () { *light = Red }; let mut l = Green; set_red(&mut l); l"
            TLight
 
+  describe "TypeChecker Phase 3B: ERefMut in function arg rejected while immutable borrow still live" $ do
+    tcErrorTest "fn change(x: &mut int) -> () { *x = 5 }; let mut x = 1; let r = &x; change(&mut x); *r"
+    tcMsgTest   "fn change(x: &mut int) -> () { *x = 5 }; let mut x = 1; let r = &x; change(&mut x); *r"
+                "already borrowed"
+
+  describe "TypeChecker Phase 3B: ERef in function arg rejected while mutable borrow still live" $ do
+    tcErrorTest "fn read(x: &int) -> int { *x }; let mut x = 1; let b = &mut x; read(&x); *b"
+    tcMsgTest   "fn read(x: &int) -> int { *x }; let mut x = 1; let b = &mut x; read(&x); *b"
+                "already mutably borrowed"
+
+  describe "TypeChecker Phase 3B: ERefMut in function arg allowed when no borrow active" $ do
+    tcTest "fn change(x: &mut int) -> () { *x = 5 }; let mut x = 1; change(&mut x); 0" TInt
+
+  describe "TypeChecker Phase 3B: ERefMut in function arg allowed after NLL releases prior borrow" $ do
+    tcTest "fn change(x: &mut int) -> () { *x = 5 }; let mut x = 1; let r = &x; let dummy = *r; change(&mut x); 0" TInt
+
+  describe "TypeChecker Phase 3B: copying immutable ref propagates borrow — move of referent rejected" $ do
+    tcErrorTest "let x = Red; let r = &x; let s = r; let y = x; *s"
+    tcMsgTest   "let x = Red; let r = &x; let s = r; let y = x; *s" "borrowed"
+
+  describe "TypeChecker Phase 3B: copying immutable ref — both copies keep referent borrowed" $ do
+    tcErrorTest "let mut x = Red; let r = &x; let s = r; x = Green; *s"
+    tcMsgTest   "let mut x = Red; let r = &x; let s = r; x = Green; *s" "borrowed"
+
+  describe "TypeChecker Phase 3B: copying immutable ref — NLL expires both copies, then move allowed" $ do
+    tcTest "let x = Red; let r = &x; let s = r; let dummy = *s; x" TLight
+
+  describe "TypeChecker Phase 3B: moving mutable ref propagates borrow — move of non-Copy referent blocked" $ do
+    tcErrorTest "let mut x = Red; let b = &mut x; let c = b; let y = x; *c"
+    tcMsgTest   "let mut x = Red; let b = &mut x; let c = b; let y = x; *c" "borrowed"
+
+  describe "TypeChecker Phase 3B: moving mutable ref — original ref is consumed" $ do
+    tcErrorTest "let mut x = 5; let b = &mut x; let c = b; *b"
+    tcMsgTest   "let mut x = 5; let b = &mut x; let c = b; *b" "used after being moved"
+
+  describe "TypeChecker Phase 3B: assigning immutable ref copy via s = r propagates borrow" $ do
+    tcErrorTest "let x = Red; let r = &x; let mut s = &x; s = r; let y = x; *s"
+    tcMsgTest   "let x = Red; let r = &x; let mut s = &x; s = r; let y = x; *s" "borrowed"
+
   describe "TypeChecker Phase 3C: NLL — unused borrow expires immediately" $ do
     tcTest "let x = Red; let r = &x; x"                        TLight
     tcTest "let x = [1, 2]; let r = &x; x"                    (TList TInt)
@@ -331,6 +370,12 @@ test = hspec $ do
     tcErrorTest "fn bad<'a>(x: &'a int) -> &'b int { x }; 0"
     tcMsgTest   "fn bad<'a>(x: &'a int) -> &'b int { x }; 0"      "undeclared lifetime"
 
+  describe "TypeChecker Phase 4A: undeclared lifetime in parameter type is rejected" $ do
+    tcErrorTest "fn bad<'a>(x: &'b int) -> int { *x }; 0"
+    tcMsgTest   "fn bad<'a>(x: &'b int) -> int { *x }; 0"         "undeclared lifetime"
+    tcErrorTest "fn bad<'a>(x: &'a int, y: &'b int) -> int { *x }; 0"
+    tcTest      "fn good<'a>(x: &'a int) -> int { *x }; let v = 5; let r = &v; good(r)" TInt
+
   describe "TypeChecker Phase 4A: returned reference preserves borrow" $ do
     tcErrorTest "fn id_ref<'a>(x: &'a Light) -> &'a Light { x }; let c = Red; let r = id_ref(&c); let v = c; *r"
     tcMsgTest   "fn id_ref<'a>(x: &'a Light) -> &'a Light { x }; let c = Red; let r = id_ref(&c); let v = c; *r"
@@ -354,3 +399,15 @@ test = hspec $ do
 
   describe "TypeChecker Phase 4B: spawn — immutable reference (Copy) is allowed" $ do
     tcTest "let x = 5; let r = &x; spawn { let y = *r }; *r"  TInt
+
+  describe "TypeChecker Phase 0: if-else branches checked independently (issue #4)" $ do
+    tcTest "fn consume(x: Light) -> () {}; let x = Red; if true { consume(x) } else { consume(x) }; 0" TInt
+    tcTest "fn consume(x: Light) -> () {}; let x = Red; let y = Green; if true { consume(x) } else { consume(y) }; 0" TInt
+    tcErrorTest "fn consume(x: Light) -> () {}; let x = Red; if true { consume(x) } else { 0 }; x"
+    tcErrorTest "fn consume(x: Light) -> () {}; let x = Red; if true { consume(x) } else { consume(x) }; x"
+
+  describe "TypeChecker Phase 0: while loop may not move outer non-Copy variables (issue #5)" $ do
+    tcErrorTest "fn consume(x: Light) -> () {}; let x = Red; let mut i = 0; while i < 2 { consume(x); i = i + 1 }; 0"
+    tcMsgTest   "fn consume(x: Light) -> () {}; let x = Red; let mut i = 0; while i < 2 { consume(x); i = i + 1 }; 0" "while loop"
+    tcTest "let mut x = 0; while x < 5 { x = x + 1 }; x" TInt
+    tcTest "fn consume(x: Light) -> () {}; let mut i = 0; while i < 2 { let y = Red; consume(y); i = i + 1 }; 0" TInt

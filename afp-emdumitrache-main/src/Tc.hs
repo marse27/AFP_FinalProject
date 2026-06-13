@@ -9,9 +9,11 @@ import Control.Monad.Except (ExceptT, runExceptT)
 import Control.Monad.State  (State, evalState)
 import Context (TcCtx)
 
--- | The type-checker monad: error + mutable typing context.
+-- This is the monad used by the type checker. 
+-- It can return an error message if type checking fails, and it can also update the type-checking context while running.
 type Tc a = ExceptT String (State TcCtx) a
 
--- | Run a type-checking action from an initial context.
+-- Here we run a type-checking action starting from a given context. 
+-- The final result is either an error message or the checked result.
 runTc :: TcCtx -> Tc a -> Either String a
 runTc ctx m = evalState (runExceptT m) ctx

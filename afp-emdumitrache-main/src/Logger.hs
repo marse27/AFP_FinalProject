@@ -14,20 +14,25 @@ import Control.Concurrent.Chan (Chan, newChan, readChan, writeChan)
 import Control.Concurrent.MVar (MVar, newEmptyMVar, putMVar, takeMVar)
 import Control.Monad           (when)
 
--- | A structured log event tagged with a phase name.
+-- This represents one log message. 
+-- Each message has a phase, like "parse" or "type-check", and the actual text that should be printed.
 data LogMsg = LogMsg
   { logPhase :: String
   , logText  :: String
   }
 
--- | A running logger handle: message channel, done-signal, and enabled flag.
+-- This stores everything needed by the logger. 
+-- chan is where log messages are sent. 
+-- done is used to know when the logger thread has finished. 
+-- enabled decides whether messages should actually be printed.
 data Logger = Logger
   { _chan    :: Chan (Maybe LogMsg)
   , _done    :: MVar ()
   , _enabled :: Bool
   }
 
--- | Fork a background drain thread. Messages print only when enabled is True.
+-- Here we start the logger. 
+-- A new channel is created for messages, and a background thread is started to read from that channel and print messages.
 startLogger :: Bool -> IO Logger
 startLogger enabled = do
   ch   <- newChan
@@ -35,18 +40,23 @@ startLogger enabled = do
   _    <- forkIO (drain ch done)
   return (Logger ch done enabled)
 
--- | Send the stop sentinel and block until the drain thread has flushed.
+-- Here we stop the logger. 
+-- Nothing is sent through the channel as a signal that no more messages are coming. 
+-- Then it waits until the logger thread confirms that it is done.
 stopLogger :: Logger -> IO ()
 stopLogger (Logger ch done _) = do
   writeChan ch Nothing
   takeMVar done
 
--- | Enqueue a log message (no-op when logging is disabled).
+-- Here we send a log message to the logger.
+-- If logging is disabled, nothing is sent.
 logMsg :: Logger -> LogMsg -> IO ()
 logMsg (Logger ch _ enabled) msg =
   when enabled (writeChan ch (Just msg))
 
--- | Background thread body: print messages until the Nothing sentinel arrives.
+-- This is the background loop that prints log messages. 
+-- It keeps reading from the channel until it receives Nothing. 
+-- When Nothing is received, it signals that the logger has finished.
 drain :: Chan (Maybe LogMsg) -> MVar () -> IO ()
 drain ch done = do
   msg <- readChan ch

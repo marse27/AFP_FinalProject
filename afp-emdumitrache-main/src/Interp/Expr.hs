@@ -32,7 +32,12 @@ interp (ENeg e)       = interp e >>= \v -> case v of
   VInt i -> return $ VInt (negate i)
   _      -> throwError "Negation applied to non-integer"
 interp (EMul e1 e2)   = arithm e1 e2 (*)
-interp (EDiv e1 e2)   = arithm e1 e2 div
+interp (EDiv e1 e2)   = do
+  v1 <- interp e1; v2 <- interp e2
+  case (v1, v2) of
+    (VInt _, VInt 0) -> throwError "Division by zero"
+    (VInt a, VInt b) -> return $ VInt (a `div` b)
+    _                -> throwError "Arithmetic on non-integers"
 interp (EAdd e1 e2)   = arithm e1 e2 (+)
 interp (ESub e1 e2)   = arithm e1 e2 (-)
 interp (ENot e)       = interp e >>= \v -> case v of
@@ -206,9 +211,11 @@ runBody (Block (s : rest))   = S.interp s >> runBody (Block rest)
 -- If the index exists, that value is returned. 
 -- If the index is outside the list, an error is thrown.
 listGet :: Int -> [Value] -> Eval Value
-listGet i vs = case drop i vs of
-  (v:_) -> return v
-  []    -> throwError $ "List index " ++ show i ++ " out of bounds"
+listGet i vs
+  | i < 0    = throwError $ "List index " ++ show i ++ " cannot be negative"
+  | otherwise = case drop i vs of
+      (v:_) -> return v
+      []    -> throwError $ "List index " ++ show i ++ " out of bounds"
 
 -- Here we evaluate arithmetic operations like +, -, *, and /. 
 -- Both expressions are evaluated first. 
