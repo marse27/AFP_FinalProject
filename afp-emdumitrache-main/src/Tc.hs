@@ -1,5 +1,3 @@
--- Type-checker monad: ExceptT for type errors layered over State for the
--- typing context. All TypeCheck.* modules run inside this stack.
 module Tc
   ( Tc
   , runTc

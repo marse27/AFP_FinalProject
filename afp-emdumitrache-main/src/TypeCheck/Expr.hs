@@ -1,9 +1,3 @@
--- Type inference and checking for expressions, running in the Tc monad.
--- Phase 1: EVar consumes ownership of affine (non-copyable) variables.
--- Phase 2A: EList infers list types; EIndex reads without consuming the list.
--- Phase 2C: EOk/EErr/EPair construct Result/pair types; EMatch pattern-matches with exhaustiveness checking.
--- Phase 3A: ERef creates an immutable borrow; EDeref reads through a reference.
--- Phase 3B: ERefMut creates a mutable borrow; EDeref also handles TRefMut as a place expression (no ownership transfer on dereference).
 module TypeCheck.Expr (infer, check) where
 
 import Control.Monad        (unless, when)

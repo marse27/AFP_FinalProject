@@ -1,4 +1,3 @@
--- Runtime values and closure representations for the AFP interpreter.
 module Value where
 
 import Data.List  (intercalate)

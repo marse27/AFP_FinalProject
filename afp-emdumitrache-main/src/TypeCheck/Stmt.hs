@@ -1,18 +1,3 @@
--- Type checking for statements; updates the typing context in the Tc monad.
--- Phase 0: mutability checking, block scoping, control flow, functions.
--- Phase 1: ownership restore on SAssign; all new bindings start as owned.
--- Phase 2A: list mutation statements (SIndexAssign, SPush, SInsert, SRemove).
--- Phase 3A: immutable borrow let-bindings; releaseTopBorrows on scope exit.
--- Phase 3B: mutable borrow let-bindings (letMutBorrow); SDerefAssign writes through a mutable reference; exclusivity enforced at borrow creation.
--- Phase 3C: non-lexical lifetimes (NLL) - borrows expire at last syntactic use,
---           not at lexical scope end. Uses Map.traverseWithKey (a van Laarhoven
---           Traversal) with Const applicative as a structural fold to identify
---           expired borrows without intermediate data structures.
--- Phase 4A: explicit lifetime annotations - functions can return references when
---           the return lifetime names a bound lifetime parameter. Borrow tracking
---           propagates from the argument to the bound result variable.
--- Phase 4B: spawn blocks - type-safe concurrency. Captured variables must be
---           Copy (no aliasing across thread boundaries); enforced at spawn sites.
 module TypeCheck.Stmt (infer, mentionedVars, releaseExpiredBorrows) where
 
 import Control.Monad        (unless, when)

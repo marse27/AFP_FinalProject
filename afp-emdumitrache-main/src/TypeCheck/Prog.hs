@@ -1,5 +1,3 @@
--- Type-check a whole program; returns the type of its final expression.
--- Phase 3C: applies NLL borrow release between each top-level statement.
 module TypeCheck.Prog (infer) where
 
 import Control.Monad.Except (throwError)
