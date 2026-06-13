@@ -49,8 +49,18 @@ infer (ESub e1 e2)    = arithmetic e1 e2
 infer (ENot e)        = check e TBool >> return TBool
 infer (EAnd e1 e2)    = logic e1 e2
 infer (EOr  e1 e2)    = logic e1 e2
-infer (EEq  e1 e2)    = infer e1 >>= \t -> check e2 t >> return TBool
-infer (ENeq e1 e2)    = infer e1 >>= \t -> check e2 t >> return TBool
+infer (EEq  e1 e2)    = do
+  t <- infer e1
+  check e2 t
+  unless (t `elem` [TInt, TBool, TLight]) $
+    throwError $ "Equality is only supported for int, bool, and Light, not " ++ printTree t
+  return TBool
+infer (ENeq e1 e2)    = do
+  t <- infer e1
+  check e2 t
+  unless (t `elem` [TInt, TBool, TLight]) $
+    throwError $ "Equality is only supported for int, bool, and Light, not " ++ printTree t
+  return TBool
 infer (ELt  e1 e2)    = comparison e1 e2
 infer (EGt  e1 e2)    = comparison e1 e2
 infer (ELeq e1 e2)    = comparison e1 e2

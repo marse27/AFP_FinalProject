@@ -4,14 +4,14 @@
 -- Phase 2A: list mutation statements (SIndexAssign, SPush, SInsert, SRemove).
 -- Phase 3A: immutable borrow let-bindings; releaseTopBorrows on scope exit.
 -- Phase 3B: mutable borrow let-bindings (letMutBorrow); SDerefAssign writes through a mutable reference; exclusivity enforced at borrow creation.
--- Phase 3C: non-lexical lifetimes (NLL) — borrows expire at last syntactic use,
+-- Phase 3C: non-lexical lifetimes (NLL) - borrows expire at last syntactic use,
 --           not at lexical scope end. Uses Map.traverseWithKey (a van Laarhoven
 --           Traversal) with Const applicative as a structural fold to identify
 --           expired borrows without intermediate data structures.
--- Phase 4A: explicit lifetime annotations — functions can return references when
+-- Phase 4A: explicit lifetime annotations - functions can return references when
 --           the return lifetime names a bound lifetime parameter. Borrow tracking
 --           propagates from the argument to the bound result variable.
--- Phase 4B: spawn blocks — type-safe concurrency. Captured variables must be
+-- Phase 4B: spawn blocks - type-safe concurrency. Captured variables must be
 --           Copy (no aliasing across thread boundaries); enforced at spawn sites.
 module TypeCheck.Stmt (infer, mentionedVars, releaseExpiredBorrows) where
 
@@ -209,8 +209,8 @@ infer (SDerefAssign r e) = do
         _              -> throwError $
           printTree r ++ " is not a mutable reference"
 
--- Here we handle changing one element of a list, like list[i] = e. 
--- The list must exist, must be mutable, and must not be moved. 
+-- Here we handle changing one element of a list, like list[i] = e.
+-- The list must exist, must be mutable, must not be moved, and must not be borrowed.
 -- The index must be an integer, and the new value must have the same type as the list elements.
 infer (SIndexAssign x i e) = do
   vars <- gets (view tcVars)
@@ -219,12 +219,14 @@ infer (SIndexAssign x i e) = do
     Just vi -> do
       unless (varMut vi)   $ throwError $ "Cannot mutate immutable list " ++ printTree x
       unless (varOwned vi) $ throwError $ "Value of " ++ printTree x ++ " used after being moved"
+      when (varBorrows vi > 0 || varMutBorrows vi > 0) $ throwError $
+        "Cannot mutate " ++ printTree x ++ ": list is currently borrowed"
       case varType vi of
         TList elemT -> E.check i TInt >> E.check e elemT
         t           -> throwError $ "Cannot index a value of type " ++ printTree t
 
--- Here we handle adding a value to the end of a list, like list.push(e). 
--- The list must exist, must be mutable, and must not be moved. 
+-- Here we handle adding a value to the end of a list, like list.push(e).
+-- The list must exist, must be mutable, must not be moved, and must not be borrowed.
 -- The added value must have the same type as the list elements.
 infer (SPush x e) = do
   vars <- gets (view tcVars)
@@ -233,12 +235,14 @@ infer (SPush x e) = do
     Just vi -> do
       unless (varMut vi)   $ throwError $ "Cannot mutate immutable list " ++ printTree x
       unless (varOwned vi) $ throwError $ "Value of " ++ printTree x ++ " used after being moved"
+      when (varBorrows vi > 0 || varMutBorrows vi > 0) $ throwError $
+        "Cannot mutate " ++ printTree x ++ ": list is currently borrowed"
       case varType vi of
         TList elemT -> E.check e elemT
         _           -> throwError $ printTree x ++ " is not a list"
 
--- Here we handle inserting a value into a list, like list.insert(i, e). 
--- The list must exist, must be mutable, and must not be moved. 
+-- Here we handle inserting a value into a list, like list.insert(i, e).
+-- The list must exist, must be mutable, must not be moved, and must not be borrowed.
 -- The index must be an integer, and the inserted value must have the same type as the list elements.
 infer (SInsert x i e) = do
   vars <- gets (view tcVars)
@@ -247,12 +251,14 @@ infer (SInsert x i e) = do
     Just vi -> do
       unless (varMut vi)   $ throwError $ "Cannot mutate immutable list " ++ printTree x
       unless (varOwned vi) $ throwError $ "Value of " ++ printTree x ++ " used after being moved"
+      when (varBorrows vi > 0 || varMutBorrows vi > 0) $ throwError $
+        "Cannot mutate " ++ printTree x ++ ": list is currently borrowed"
       case varType vi of
         TList elemT -> E.check i TInt >> E.check e elemT
         _           -> throwError $ printTree x ++ " is not a list"
 
--- Here we handle removing a value from a list, like list.remove(i). 
--- The list must exist, must be mutable, and must not be moved. 
+-- Here we handle removing a value from a list, like list.remove(i).
+-- The list must exist, must be mutable, must not be moved, and must not be borrowed.
 -- The index must be an integer.
 infer (SRemove x i) = do
   vars <- gets (view tcVars)
@@ -261,6 +267,8 @@ infer (SRemove x i) = do
     Just vi -> do
       unless (varMut vi)   $ throwError $ "Cannot mutate immutable list " ++ printTree x
       unless (varOwned vi) $ throwError $ "Value of " ++ printTree x ++ " used after being moved"
+      when (varBorrows vi > 0 || varMutBorrows vi > 0) $ throwError $
+        "Cannot mutate " ++ printTree x ++ ": list is currently borrowed"
       case varType vi of
         TList _ -> E.check i TInt
         _       -> throwError $ printTree x ++ " is not a list"
@@ -269,12 +277,17 @@ infer (SRemove x i) = do
 -- A block gets its own scope, so variables declared inside it should disappear after the block is checked.
 infer (SBlock b) = checkBlock b
 
--- Here we handle an if-statement without an else branch. 
--- The condition must be a boolean. 
+-- Here we handle an if-statement without an else branch.
+-- The condition must be a boolean.
 -- The body is checked as its own block, so variables declared inside it only exist inside that block.
+-- The pre-branch context is saved and merged with the post-body context afterwards,
+-- because the body may or may not execute at runtime.
 infer (SIf cond body) = do
   E.check cond TBool
+  ctxBefore <- get
   checkBlock body
+  ctxAfterBody <- get
+  put (mergeContexts ctxAfterBody ctxBefore)
 
 -- Here we handle an if-else statement.
 -- The condition must be a boolean.
@@ -301,6 +314,7 @@ infer (SWhile cond body) = do
   checkBlock body
   ctxAfter <- get
   checkNoLoopMoves ctxBefore ctxAfter
+  put (mergeContexts ctxAfter ctxBefore)
 
 -- Here we handle declaring a normal function.
 -- Normal functions are not allowed to return references, because there is no lifetime information that proves the reference would stay valid.
@@ -309,9 +323,11 @@ infer (SWhile cond body) = do
 -- After the function body, borrows from this scope are released and the scope is removed.
 infer (SFun f params retTy body) = do
   case retTy of
-    TRef _    -> throwError $ "Function " ++ printTree f ++ " cannot return a reference type"
-    TRefMut _ -> throwError $ "Function " ++ printTree f ++ " cannot return a reference type"
-    _         -> return ()
+    TRef _        -> throwError $ "Function " ++ printTree f ++ " cannot return a reference type"
+    TRefMut _     -> throwError $ "Function " ++ printTree f ++ " cannot return a reference type"
+    TRefLt _ _    -> throwError $ "Function " ++ printTree f ++ " cannot return a reference type; use a lifetime function fn " ++ printTree f ++ "<'a>(...) instead"
+    TRefMutLt _ _ -> throwError $ "Function " ++ printTree f ++ " cannot return a reference type; use a lifetime function fn " ++ printTree f ++ "<'a>(...) instead"
+    _             -> return ()
   modify (over tcFuns (Map.insert f (TFun params retTy)))
   modify (over tcVars push)
   mapM_ bindParam params

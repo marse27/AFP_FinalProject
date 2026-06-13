@@ -147,6 +147,14 @@ test = hspec $ do
     tcErrorTest "let x = [1, 2]; let y = x; x"
     tcMsgTest   "let x = [1, 2]; let y = x; x"  "moved"
 
+  describe "TypeChecker Phase 2A: list mutation rejected while borrowed" $ do
+    tcErrorTest "let mut xs = [1, 2, 3]; let r = &xs; xs.push(4); *r"
+    tcMsgTest   "let mut xs = [1, 2, 3]; let r = &xs; xs.push(4); *r"    "borrowed"
+    tcErrorTest "let mut xs = [1, 2, 3]; let r = &xs; xs.remove(0); *r"
+    tcErrorTest "let mut xs = [1, 2, 3]; let r = &xs; xs.insert(0, 9); *r"
+    tcErrorTest "let mut xs = [1, 2, 3]; let r = &xs; xs[0] = 9; *r"
+    tcTest      "let mut xs = [1, 2]; xs.push(3); xs" (TList TInt)
+
   describe "TypeChecker Phase 2B: int is Copy (can be read any number of times)" $ do
     tcTest "let x = 5; let y = x; x + y"                   TInt
     tcTest "let x = 5; let y = x; let z = x; x + y + z"   TInt
