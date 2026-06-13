@@ -1,4 +1,4 @@
--- | Interpreter for whole programs; returns the value of the final expression.
+-- Interpreter for whole programs; returns the value of the final expression.
 module Interp.Prog (interp) where
 
 import Control.Monad.Except (throwError)

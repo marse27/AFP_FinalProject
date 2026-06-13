@@ -1,6 +1,5 @@
--- | Concurrent logging subsystem: a background thread drains a Chan of
+-- Concurrent logging subsystem: a background thread drains a Chan of
 -- structured log messages, printing them when logging is enabled.
--- Satisfies the group-of-2 concurrency technique requirement.
 module Logger
   ( Logger
   , LogMsg (..)

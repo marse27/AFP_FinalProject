@@ -1,10 +1,9 @@
--- | Type checking for statements; updates the typing context in the Tc monad.
+-- Type checking for statements; updates the typing context in the Tc monad.
 -- Phase 0: mutability checking, block scoping, control flow, functions.
 -- Phase 1: ownership restore on SAssign; all new bindings start as owned.
 -- Phase 2A: list mutation statements (SIndexAssign, SPush, SInsert, SRemove).
 -- Phase 3A: immutable borrow let-bindings; releaseTopBorrows on scope exit.
--- Phase 3B: mutable borrow let-bindings (letMutBorrow); SDerefAssign writes
---           through a mutable reference; exclusivity enforced at borrow creation.
+-- Phase 3B: mutable borrow let-bindings (letMutBorrow); SDerefAssign writes through a mutable reference; exclusivity enforced at borrow creation.
 -- Phase 3C: non-lexical lifetimes (NLL) — borrows expire at last syntactic use,
 --           not at lexical scope end. Uses Map.traverseWithKey (a van Laarhoven
 --           Traversal) with Const applicative as a structural fold to identify
@@ -643,9 +642,9 @@ mentionedExp _                = Set.empty
 mentionedArm :: Arm -> Set.Set Ident
 mentionedArm (MatchArm _ body) = mentionedExp body
 
--- Here we combine the contexts produced by the two branches of an if-else. 
--- A variable is considered owned afterwards only if it is still owned after both branches. 
--- For active borrows, we keep the larger count because either branch may have been executed at runtime. 
+-- Here we combine the contexts produced by the two branches of an if-else.
+-- A variable is considered owned afterwards only if it is still owned after both branches.
+-- For active borrows, we keep the smaller count because a borrow that exists in only one branch cannot be assumed to exist after.
 -- Function information from the two resulting contexts is also combined.
 mergeContexts :: TcCtx -> TcCtx -> TcCtx
 mergeContexts ctx1 ctx2 =
@@ -653,9 +652,9 @@ mergeContexts ctx1 ctx2 =
   $ set tcFuns (Map.union (view tcFuns ctx1) (view tcFuns ctx2))
   $ ctx1
 
--- Here we combine the information stored for the same variable after checking both branches. 
--- The variable keeps ownership only when both branches keep it. 
--- Borrow counts use the larger value so that a borrow that may still exist after either branch is not accidentally forgotten. 
+-- Here we combine the information stored for the same variable after checking both branches.
+-- The variable keeps ownership only when both branches keep it.
+-- Borrow counts use the smaller value, because we can only be sure a borrow count is at least as large as the minimum of the two branches.
 -- The borrowed source is kept only when it is the same in both branches.
 mergeVarInfo :: VarInfo -> VarInfo -> VarInfo
 mergeVarInfo vi1 vi2 = VarInfo

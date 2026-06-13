@@ -1,4 +1,4 @@
--- | Interpreter for statements; updates the evaluation context in the Eval monad.
+-- Interpreter for statements; updates the evaluation context in the Eval monad.
 -- Phase 0: mutable assignment, block scoping, control flow, functions.
 -- Phase 2A: list mutation (SIndexAssign, SPush, SInsert, SRemove).
 -- Phase 3B: SDerefAssign writes through a mutable reference via updateSkipping.

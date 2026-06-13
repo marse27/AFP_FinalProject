@@ -1,5 +1,3 @@
--- | Thin alias over Data.Map for identifier-keyed environments.
--- Retained for compatibility; the main scoping mechanism is ScopeStack.
 module Env where
 
 import qualified Data.Map as Map

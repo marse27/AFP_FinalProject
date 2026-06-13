@@ -1,4 +1,3 @@
--- | Parsing utility: converts AFP source text into a Program AST.
 module Evaluator (parse) where
 
 import Lang.Par (myLexer, pProgram)

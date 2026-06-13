@@ -1,4 +1,4 @@
--- | Persistent, immutable stack of scope frames threaded through the type
+-- Persistent, immutable stack of scope frames threaded through the type
 -- checker and interpreter. Each frame is a Map from Ident to a value.
 -- Push / pop are O(1); lookup searches from innermost scope outward.
 module ScopeStack

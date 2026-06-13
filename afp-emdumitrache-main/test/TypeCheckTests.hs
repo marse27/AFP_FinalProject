@@ -94,7 +94,6 @@ test = hspec $ do
   describe "TypeChecker Phase 1: Light bindings (affine, move on read)" $ do
     tcTest "let x = Red; x"    TLight
     tcTest "let mut x = Red; x" TLight
-    -- assigning a new light to a mutable restores ownership
     tcTest "let mut x = Red; x = Green; x" TLight
 
   describe "TypeChecker Phase 1: use-after-move is rejected" $ do
@@ -118,7 +117,7 @@ test = hspec $ do
     tcErrorTest "[]"
     tcMsgTest   "[]"   "empty"
 
-  describe "TypeChecker Phase 2A: immutable list — read allowed, mutation rejected" $ do
+  describe "TypeChecker Phase 2A: immutable list - read allowed, mutation rejected" $ do
     tcTest    "let x = [1, 2]; x[1]"     TInt
     tcErrorTest "let x = [1, 2]; x.push(3); x"
     tcMsgTest   "let x = [1, 2]; x.push(3); x"  "immutable"
@@ -129,7 +128,7 @@ test = hspec $ do
     tcErrorTest "let x = [1, 2]; x.remove(0); x"
     tcMsgTest   "let x = [1, 2]; x.remove(0); x"     "immutable"
 
-  describe "TypeChecker Phase 2A: mutable list — all operations allowed" $ do
+  describe "TypeChecker Phase 2A: mutable list - all operations allowed" $ do
     tcTest "let mut x = [1, 2]; x.push(3); x"          (TList TInt)
     tcTest "let mut x = [1, 2]; x[0] = 9; x"           (TList TInt)
     tcTest "let mut x = [1, 2]; x.insert(1, 9); x"     (TList TInt)
@@ -257,15 +256,15 @@ test = hspec $ do
     tcErrorTest "let x = 5; let b = &mut x; *b"
     tcMsgTest   "let x = 5; let b = &mut x; *b"               "not mutable"
 
-  describe "TypeChecker Phase 3B: exclusivity — no two mutable borrows" $ do
+  describe "TypeChecker Phase 3B: exclusivity - no two mutable borrows" $ do
     tcErrorTest "let mut x = 5; let b1 = &mut x; let b2 = &mut x; *b1"
     tcMsgTest   "let mut x = 5; let b1 = &mut x; let b2 = &mut x; *b1" "already mutably borrowed"
 
-  describe "TypeChecker Phase 3B: exclusivity — mutable borrow blocks immutable (both used)" $ do
+  describe "TypeChecker Phase 3B: exclusivity - mutable borrow blocks immutable (both used)" $ do
     tcErrorTest "let mut x = 5; let b = &mut x; let r = &x; *r + *b"
     tcMsgTest   "let mut x = 5; let b = &mut x; let r = &x; *r + *b" "already mutably borrowed"
 
-  describe "TypeChecker Phase 3B: exclusivity — immutable borrow blocks mutable (both used)" $ do
+  describe "TypeChecker Phase 3B: exclusivity - immutable borrow blocks mutable (both used)" $ do
     tcErrorTest "let mut x = 5; let r = &x; let b = &mut x; *r + *b"
     tcMsgTest   "let mut x = 5; let r = &x; let b = &mut x; *r + *b" "already borrowed"
 
@@ -312,22 +311,22 @@ test = hspec $ do
   describe "TypeChecker Phase 3B: ERefMut in function arg allowed after NLL releases prior borrow" $ do
     tcTest "fn change(x: &mut int) -> () { *x = 5 }; let mut x = 1; let r = &x; let dummy = *r; change(&mut x); 0" TInt
 
-  describe "TypeChecker Phase 3B: copying immutable ref propagates borrow — move of referent rejected" $ do
+  describe "TypeChecker Phase 3B: copying immutable ref propagates borrow - move of referent rejected" $ do
     tcErrorTest "let x = Red; let r = &x; let s = r; let y = x; *s"
     tcMsgTest   "let x = Red; let r = &x; let s = r; let y = x; *s" "borrowed"
 
-  describe "TypeChecker Phase 3B: copying immutable ref — both copies keep referent borrowed" $ do
+  describe "TypeChecker Phase 3B: copying immutable ref - both copies keep referent borrowed" $ do
     tcErrorTest "let mut x = Red; let r = &x; let s = r; x = Green; *s"
     tcMsgTest   "let mut x = Red; let r = &x; let s = r; x = Green; *s" "borrowed"
 
-  describe "TypeChecker Phase 3B: copying immutable ref — NLL expires both copies, then move allowed" $ do
+  describe "TypeChecker Phase 3B: copying immutable ref - NLL expires both copies, then move allowed" $ do
     tcTest "let x = Red; let r = &x; let s = r; let dummy = *s; x" TLight
 
-  describe "TypeChecker Phase 3B: moving mutable ref propagates borrow — move of non-Copy referent blocked" $ do
+  describe "TypeChecker Phase 3B: moving mutable ref propagates borrow - move of non-Copy referent blocked" $ do
     tcErrorTest "let mut x = Red; let b = &mut x; let c = b; let y = x; *c"
     tcMsgTest   "let mut x = Red; let b = &mut x; let c = b; let y = x; *c" "borrowed"
 
-  describe "TypeChecker Phase 3B: moving mutable ref — original ref is consumed" $ do
+  describe "TypeChecker Phase 3B: moving mutable ref - original ref is consumed" $ do
     tcErrorTest "let mut x = 5; let b = &mut x; let c = b; *b"
     tcMsgTest   "let mut x = 5; let b = &mut x; let c = b; *b" "used after being moved"
 
@@ -335,19 +334,19 @@ test = hspec $ do
     tcErrorTest "let x = Red; let r = &x; let mut s = &x; s = r; let y = x; *s"
     tcMsgTest   "let x = Red; let r = &x; let mut s = &x; s = r; let y = x; *s" "borrowed"
 
-  describe "TypeChecker Phase 3C: NLL — unused borrow expires immediately" $ do
+  describe "TypeChecker Phase 3C: NLL - unused borrow expires immediately" $ do
     tcTest "let x = Red; let r = &x; x"                        TLight
     tcTest "let x = [1, 2]; let r = &x; x"                    (TList TInt)
     tcTest "let mut x = Red; let b = &mut x; x"                TLight
 
-  describe "TypeChecker Phase 3C: NLL — borrow expires at last use, not scope end" $ do
+  describe "TypeChecker Phase 3C: NLL - borrow expires at last use, not scope end" $ do
     tcTest "let mut x = 5; let r = &x; *r; x = 10; x"         TInt
     tcTest "let mut x = Red; let r = &x; *r; x = Green; x"    TLight
 
-  describe "TypeChecker Phase 3C: NLL — mutable borrow expires at last use" $ do
+  describe "TypeChecker Phase 3C: NLL - mutable borrow expires at last use" $ do
     tcTest "let mut x = 5; let b = &mut x; *b; x = 20; x"     TInt
 
-  describe "TypeChecker Phase 3C: NLL — borrow in inner block expires early" $ do
+  describe "TypeChecker Phase 3C: NLL - borrow in inner block expires early" $ do
     tcTest "let mut x = 5; { let r = &x; *r }; x = 10; x"     TInt
 
   describe "TypeChecker Phase 4A: lifetime-generic functions can return references" $ do
@@ -381,23 +380,23 @@ test = hspec $ do
     tcMsgTest   "fn id_ref<'a>(x: &'a Light) -> &'a Light { x }; let c = Red; let r = id_ref(&c); let v = c; *r"
                 "borrowed"
 
-  describe "TypeChecker Phase 4B: spawn — well-typed programs" $ do
+  describe "TypeChecker Phase 4B: spawn - well-typed programs" $ do
     tcTest "spawn { }; 42"                                      TInt
     tcTest "let x = 5; spawn { let y = x }; x"                 TInt
     tcTest "let b = true; spawn { let c = b }; b"              TBool
     tcTest "spawn { let mut n = 0; n = n + 1 }; 0"             TInt
 
-  describe "TypeChecker Phase 4B: spawn — non-Copy captures rejected" $ do
+  describe "TypeChecker Phase 4B: spawn - non-Copy captures rejected" $ do
     tcErrorTest "let x = Red; spawn { let y = x }; 0"
     tcMsgTest   "let x = Red; spawn { let y = x }; 0"          "non-Copy"
     tcErrorTest "let x = [1, 2]; spawn { let y = x }; 0"
     tcMsgTest   "let x = [1, 2]; spawn { let y = x }; 0"       "non-Copy"
 
-  describe "TypeChecker Phase 4B: spawn — mutable reference (not Copy) rejected" $ do
+  describe "TypeChecker Phase 4B: spawn - mutable reference (not Copy) rejected" $ do
     tcErrorTest "let mut x = 5; let b = &mut x; spawn { *b }; x"
     tcMsgTest   "let mut x = 5; let b = &mut x; spawn { *b }; x" "non-Copy"
 
-  describe "TypeChecker Phase 4B: spawn — immutable reference (Copy) is allowed" $ do
+  describe "TypeChecker Phase 4B: spawn - immutable reference (Copy) is allowed" $ do
     tcTest "let x = 5; let r = &x; spawn { let y = *r }; *r"  TInt
 
   describe "TypeChecker Phase 0: if-else branches checked independently (issue #4)" $ do

@@ -1,4 +1,4 @@
--- | Interpreter tests: positive (correct value) for Phase 0 features.
+-- Interpreter tests: positive (correct value).
 -- Negative type-checking cases are already covered in TypeCheckTests;
 -- here we only test programs that should succeed end-to-end.
 module InterpTests where
@@ -8,13 +8,13 @@ import Data.Either (isLeft)
 import Run   (run)
 import Value (Value (..))
 
--- | Assert that the program evaluates to the given value.
+-- Assert that the program evaluates to the given value.
 interpTest :: String -> Value -> Spec
 interpTest input expected =
   it (show input) $
     run input `shouldBe` Right expected
 
--- | Assert that the program produces a runtime error containing the given substring.
+-- Assert that the program produces a runtime error containing the given substring.
 interpErrorTest :: String -> String -> Spec
 interpErrorTest input substr =
   it (show input ++ " [runtime error contains " ++ show substr ++ "]") $
@@ -121,12 +121,12 @@ test = hspec $ do
       "let mut list = [1, 2]; list.push(3); list[0] = 4; list.remove(2); let snd = list[1]; list.insert(1, 13); snd"
       (VInt 2)
 
-  describe "Interpreter Phase 2B: int Copy — spec example (use x three times)" $ do
+  describe "Interpreter Phase 2B: int Copy - spec example (use x three times)" $ do
     interpTest "fn f(x: int) -> int { x }; let a = 5; let b = f(a); let c = f(a); a + b + c"
                (VInt 15)
     interpTest "let x = 7; let y = x; let z = x; x + y + z"  (VInt 21)
 
-  describe "Interpreter Phase 2B: bool Copy — use b multiple times" $ do
+  describe "Interpreter Phase 2B: bool Copy - use b multiple times" $ do
     interpTest "let b = true; let c = b; let d = b; if b then if c then 1 else 0 else 0"
                (VInt 1)
 
@@ -160,7 +160,7 @@ test = hspec $ do
     interpTest "match Red { r => 42 }"                               (VInt 42)
     interpTest "let p = (1, 2); match p { w => 0 }"                 (VInt 0)
 
-  describe "Interpreter Phase 2C: spec example — safe division via Result" $ do
+  describe "Interpreter Phase 2C: spec example - safe division via Result" $ do
     interpTest
       "fn safe_div(x: int, y: int) -> Result<int> { if y == 0 then Err(0) else Ok(x / y) }; let r = safe_div(84, 2); match r { Ok(v) => v, Err(e) => e }"
       (VInt 42)
@@ -177,7 +177,7 @@ test = hspec $ do
     interpTest "fn f(r: &int) -> int { *r + 1 }; let x = 10; f(&x)"
                (VInt 11)
 
-  describe "Interpreter Phase 3A: borrow scope — ref expires in inner block" $ do
+  describe "Interpreter Phase 3A: borrow scope - ref expires in inner block" $ do
     interpTest "let x = 5; { let r = &x }; x"             (VInt 5)
     interpTest "let mut x = 5; { let r = &x }; x = 10; x" (VInt 10)
 
@@ -198,15 +198,15 @@ test = hspec $ do
     interpTest "fn set_red(mut light: &mut Light) -> () { *light = Red }; let mut l = Green; set_red(&mut l); l"
                VLightRed
 
-  describe "Interpreter Phase 3C: NLL — borrow expires at last use" $ do
+  describe "Interpreter Phase 3C: NLL - borrow expires at last use" $ do
     interpTest "let mut x = 5; let r = &x; *r; x = 10; x"     (VInt 10)
     interpTest "let mut x = Red; let r = &x; *r; x = Green; x" VLightGreen
 
-  describe "Interpreter Phase 3C: NLL — unused borrow allows immediate reuse" $ do
+  describe "Interpreter Phase 3C: NLL - unused borrow allows immediate reuse" $ do
     interpTest "let mut x = 5; let r = &x; x = 10; x"          (VInt 10)
     interpTest "let x = Red; let r = &x; x"                    VLightRed
 
-  describe "Interpreter Phase 3C: NLL — mutable borrow expires at last use" $ do
+  describe "Interpreter Phase 3C: NLL - mutable borrow expires at last use" $ do
     interpTest "let mut x = 5; let b = &mut x; *b; x = 20; x"  (VInt 20)
     interpTest "let mut x = Red; let b = &mut x; *b = Green; x = Red; x" VLightRed
 

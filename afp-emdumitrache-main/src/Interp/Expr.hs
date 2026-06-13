@@ -1,4 +1,4 @@
--- | Interpreter for expressions, running in the Eval monad.
+-- Interpreter for expressions, running in the Eval monad.
 -- Phase 2C: EOk/EErr/EPair construct Result/pair values; EMatch dispatches
 --           arms using tryMatch and runs the matching arm's body.
 -- Phase 3A: ERef stores a VRef (variable name); EDeref looks up through the ref.

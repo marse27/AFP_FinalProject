@@ -1,6 +1,4 @@
--- | Typing and evaluation contexts, plus van Laarhoven lenses for their fields.
--- Lenses let callers update nested context fields without boilerplate record
--- syntax; they are the primary optics technique used throughout the checker.
+-- Typing and evaluation contexts, plus van Laarhoven lenses for their fields.
 module Context
   ( TcCtx (..)
   , EvalCtx (..)

@@ -1,4 +1,4 @@
--- | Top-level entry points: parse, type-check, and evaluate AFP programs.
+-- Top-level entry points: parse, type-check, and evaluate programs.
 module Run (infertype, run) where
 
 import Evaluator (parse)
