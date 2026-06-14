@@ -1,5 +1,4 @@
--- Type-checker tests: positive (accepts), negative (rejects), and
--- error-message tests (checks the error text).
+-- Type-checker tests: positive, negative, and error-message tests.
 module TypeCheckTests where
 
 import Test.Hspec

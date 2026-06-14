@@ -1,6 +1,6 @@
 -- Interpreter tests: positive (correct value).
 -- Negative type-checking cases are already covered in TypeCheckTests.
--- here we only test programs that should succeed end-to-end.
+-- here we only test programs that should succeed.
 module InterpTests where
 
 import Test.Hspec
