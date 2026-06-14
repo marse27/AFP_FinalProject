@@ -1,7 +1,6 @@
 // Phase 3C: Non-Lexical Lifetimes (NLL).
 // A borrow expires at its last syntactic use, not at the end of its lexical scope.
-// *r is the last use of r, the borrow on x expires there, so x = 10 is legal
-// even though r is still technically in scope.
+// *r is the last use of r, the borrow on x expires there, so x = 10 is legal even though r is still technically in scope.
 // Expected output: 10
 let mut x = 5;
 let r = &x;

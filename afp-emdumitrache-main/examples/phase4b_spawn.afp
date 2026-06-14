@@ -1,7 +1,6 @@
 // Phase 4B: user-facing spawn blocks.
 // Only Copy types (int, bool, immutable references) can be captured by a spawn block.
-// Non-Copy types (Light, lists, &mut) are rejected by the type checker,
-// preventing data races across thread boundaries.
+// Non-Copy types (Light, lists, &mut) are rejected by the type checker, preventing data races across thread boundaries.
 // Expected output: 5
 let x = 5;
 let flag = true;

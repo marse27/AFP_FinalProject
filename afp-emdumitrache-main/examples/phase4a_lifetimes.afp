@@ -1,7 +1,6 @@
 // Phase 4A: explicit lifetime annotations.
 // fn id_ref<'a> declares that the return reference has the same lifetime as x.
-// The type checker tracks that r borrows y across the function call boundary,
-// so y stays alive as long as r is in use.
+// The type checker tracks that r borrows y across the function call boundary, so y stays alive as long as r is in use.
 // Expected output: 5
 fn id_ref<'a>(x: &'a int) -> &'a int { x };
 let y = 5;

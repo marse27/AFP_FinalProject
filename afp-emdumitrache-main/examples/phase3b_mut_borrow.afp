@@ -1,6 +1,6 @@
 // Phase 3B: mutable borrows - exclusive write access through &mut.
-// &mut x grants read and write access. *b can be read multiple times
-// because EDeref of a &mut is a place-expression and does not consume b.
+// &mut x grants read and write access. 
+// *b can be read multiple times because EDeref of a &mut is a place-expression and does not consume b.
 // Exclusivity: while b is alive no other borrow of x is allowed.
 // Expected output: 42
 fn double_via_mut(b: &mut int) -> int { *b + *b };

@@ -1,154 +1,185 @@
-# AFP Language Project
+# AFP Ownership Type System
 
-This project is a template for implementing the final project of Advanced Functional Programming at the TU Delft.
-It contains a grammar definition for a small language, its type checker, and its interpreter.
+An ownership type system for memory safety, implemented in Haskell as the final project for Advanced Functional Programming at TU Delft.
+
+The language is inspired by Rust and supports affine types, move semantics, immutable and mutable borrows, non-lexical lifetimes, explicit lifetime annotations, and user-facing spawn blocks for safe concurrency.
 
 The repository consists of the following components:
 
-* `app`: the home directory for the executable (contains only the `Main.hs` function)
-* `grammar`: the grammar library, automatically generated using [BNFC](https://bnfc.readthedocs.io/) from the `Lang.cf` file
-* **`src`:** contains source code for the `lang` library
-* `test`: the test suite
+- `app/` - entry point (`Main.hs`) with interactive REPL and `--log` flag support
+- `grammar/` - BNFC-generated parser and AST for the language
+- `src/` - type checker and interpreter source code
+- `test/` - test suite (type checker, interpreter, logger tests)
+- `examples/` - example programs for each phase
+- `examples/errors/` - example programs that demonstrate type errors
 
-## Building, Running, and Testing
+---
 
-You will need to have Cabal installed for this project.
+## Building and Running
 
-### Setup BNFC
+You will need GHC and Cabal installed. The project is tested with GHC 9.10.3 and Cabal 3.16.
 
-Once done, use cabal to install BNFC:
-
-```
-cabal update
-cabal install BNFC --overwrite-policy=always
-```
-
-*TIP:* Install the [LBNF](https://marketplace.visualstudio.com/items?itemName=agurodriguez.vscode-lbnf) extension for VS Code for syntax highlighting on `.cf` files.
-
-### Building
-
-To build the grammar library, use BNFC to generate the Haskell files into the `grammar/` directory:
-
-```
-bnfc -d grammar/Lang.cf -o grammar
-```
-
-Then, build the whole project using cabal:
+### Build
 
 ```
 cabal build
 ```
 
-Optionally, you can install the executable `afp-lang` on your system globally:
+### Run a file
 
 ```
-cabal install --overwrite-policy=always
+cabal run afp-lang -- examples/phase0_mutable.afp
 ```
 
-### Running
+### Run with logging enabled
 
-To run the project, your grammar library needs to be generated (see [Building](#building)).
-To run an interactive interpreter where you can input programs and have them immediately evaluated, simply run
-
-```
-cabal run
-```
-
-To run the interpreter on a program in a file, pass the path to the file as a parameter to cabal, e.g.:
+Passing `--log` prints a message when the run starts and finishes, produced by the concurrent logger running on a background thread:
 
 ```
-cabal run exes -- examples/sample.afp
+cabal run afp-lang -- --log examples/phase0_mutable.afp
 ```
 
-### Testing
+Output:
 
-To run the test suite, your grammar library needs to be generated (see [Building](#building)).
-Then, simply run
+```
+[run] start
+5
+[run] done
+```
+
+### Run the interactive REPL
+
+Type a program and press Enter to evaluate it immediately:
+
+```
+cabal run afp-lang
+```
+
+### Run all tests
 
 ```
 cabal test
 ```
 
-### Makefile
+---
 
-If you have `make` available, you can use the following commands to interact with the project:
+## Example Programs
 
-```bash
+All examples are in the `examples/` folder. Each file has a comment at the top explaining what it demonstrates and the expected output.
 
-make build              # building the project
-make install            # installing afp-lang executable (optional)
-make run                # running the interactive interpreter
-make run FILE="<path>"  # running the interpreter on a program file
-                        # e.g. make run FILE="examples/sample.afp"
+### Valid programs (should succeed)
 
-make test               # running the test suite
+| File | Phase | Expected output |
+|---|---|---|
+| `phase0_mutable.afp` | Mutable variables | `5` |
+| `phase0_block.afp` | Block scoping | `5` |
+| `phase0_control.afp` | If-else and while | `5` |
+| `phase0_functions.afp` | Multi-param functions | `48` |
+| `phase1_affine.afp` | Affine types / move semantics | `1` |
+| `phase1_ownership.afp` | Ownership transfer | `Green` |
+| `phase2a_lists.afp` | Mutable list operations | `2` |
+| `phase2b_copy.afp` | Copyable primitives (int, bool) | `15` |
+| `phase2c_match.afp` | Result type and pattern matching | `42` |
+| `phase3a_borrow.afp` | Immutable borrows | `42` |
+| `phase3b_mut_borrow.afp` | Mutable borrows | `42` |
+| `phase3c_nll.afp` | Non-lexical lifetimes | `10` |
+| `phase4a_lifetimes.afp` | Explicit lifetime annotations | `5` |
+| `phase4b_spawn.afp` | Spawn blocks (safe concurrency) | `5` |
 
-make clean              # cleans all generated files and cabal
-```
-
-## Language Specification
-
-A program in this language consists of an arbitrary number of statements separated by `;`.
-A valid program looks like this (available in `examples/sample.afp`):
-
-```haskell
-val x = 3;
-val y = 5;
-fun orFalse (a : Bool) = a || False;
-val z = x + y < 10;
-res = orFalse(z);
-res;
-```
-
-The language supports the following statements:
-
-* variable binding (`val x = 7;`),
-* function declaration (`fun plus_two (x : int) = x + 2;`),
-* function calls (`y = plus_two(x)`),
-* return statements (`y > 8`), which should only appear as the final statement in a program.
-
-as well as the following expressions:
-
-* integers (`1`, `-23796`) and integer operations:
-  * addition (`+`),
-  * subtraction (`-`),
-  * multiplication (`*`), and
-  * division (`/`),
-* booleans (`True` and `False`) and boolean operations:
-  * "and" (`&&`),
-  * "or" (`||`), and
-  * "not" (`!`),
-* comparison operations:
-  * "equal to" (`==`),
-  * "less than" (`<`) and "less than or equal to" (`<=`), and
-  * "greater than" (`>`) and "greater than or equal to" (`>=`),
-* branching (`if ... then ... else ...`),
-* variables (`x`, `y`),
-* let bindings (`let x = ... in ...`), and
-* brackets (`(...)`).
-
-Orders of operation follow these priority levels (`0` being lowest and `8` being highest):
+Run all valid examples at once:
 
 ```
-0:  (==)  equal to
-1:  (||)  or
-2:  (&&)  and
-3:  (!)   not
-          booleans*
-4:  (<)   less than
-    (<=)  less than or equal to
-    (>)   greater than
-    (>=)  greater than or equal to
-5:  (+)   addition (+)
-    (-)   subtraction (-)
-6:  (*)   multiplication
-    (/)   division
-7:        integers*
-8:        brackets
-          branching
-          let bindings
-          variables
+cabal run afp-lang -- examples/phase0_mutable.afp ; cabal run afp-lang -- examples/phase0_block.afp ; cabal run afp-lang -- examples/phase0_control.afp ; cabal run afp-lang -- examples/phase0_functions.afp ; cabal run afp-lang -- examples/phase1_affine.afp ; cabal run afp-lang -- examples/phase1_ownership.afp ; cabal run afp-lang -- examples/phase2a_lists.afp ; cabal run afp-lang -- examples/phase2b_copy.afp ; cabal run afp-lang -- examples/phase2c_match.afp ; cabal run afp-lang -- examples/phase3a_borrow.afp ; cabal run afp-lang -- examples/phase3b_mut_borrow.afp ; cabal run afp-lang -- examples/phase3c_nll.afp ; cabal run afp-lang -- examples/phase4a_lifetimes.afp ; cabal run afp-lang -- examples/phase4b_spawn.afp
 ```
 
-`*`: types must have the same priority level than the highest one in which they are used
+### Error programs (should be rejected by the type checker)
 
+These programs are in `examples/errors/`. Each one demonstrates a specific type error that the type checker is expected to catch.
+
+| File | Phase | Error demonstrated |
+|---|---|---|
+| `phase1_error_move.afp` | Phase 1 | Use after move |
+| `phase2a_error_immutable.afp` | Phase 2A | Mutating an immutable list |
+| `phase2b_error_move.afp` | Phase 2B | List is not Copy |
+| `phase3a_error_borrow.afp` | Phase 3A | Move while borrowed |
+| `phase3b_error_exclusivity.afp` | Phase 3B | Mutable and immutable borrow conflict |
+| `phase3c_error_dangle.afp` | Phase 3C | Dangling borrow |
+| `phase4a_error_lifetime.afp` | Phase 4A | Returning reference without lifetime |
+| `phase4b_error_spawn.afp` | Phase 4B | Non-Copy capture in spawn |
+
+Run all error examples at once:
+
+```
+cabal run afp-lang -- examples/errors/phase1_error_move.afp ; cabal run afp-lang -- examples/errors/phase2a_error_immutable.afp ; cabal run afp-lang -- examples/errors/phase2b_error_move.afp ; cabal run afp-lang -- examples/errors/phase3a_error_borrow.afp ; cabal run afp-lang -- examples/errors/phase3b_error_exclusivity.afp ; cabal run afp-lang -- examples/errors/phase3c_error_dangle.afp ; cabal run afp-lang -- examples/errors/phase4a_error_lifetime.afp ; cabal run afp-lang -- examples/errors/phase4b_error_spawn.afp
+```
+
+---
+
+## Language Overview
+
+A program is a sequence of statements separated by `;`, ending with a final expression that produces the result.
+
+### Types
+
+| Type | Description |
+|---|---|
+| `int` | Integer (Copy) |
+| `bool` | Boolean (Copy) |
+| `Light` | Traffic light: `Red`, `Yellow`, `Green` (affine, non-Copy) |
+| `[T]` | List of copyable elements (non-Copy) |
+| `Result<T>` | Either `Ok(v)` or `Err(v)` |
+| `(T1, T2)` | Pair |
+| `&T` | Immutable reference (Copy) |
+| `&mut T` | Mutable reference (non-Copy) |
+| `&'a T` | Immutable reference with lifetime annotation |
+| `&mut 'a T` | Mutable reference with lifetime annotation |
+| `()` | Unit / void |
+
+### Statements
+
+```
+let x = e              // immutable variable
+let mut x = e          // mutable variable
+x = e                  // reassignment (x must be mut)
+*r = e                 // write through mutable reference
+list.push(e)           // append to list
+list.insert(i, e)      // insert at index
+list.remove(i)         // remove at index
+list[i] = e            // assign at index
+if c { ... }           // conditional
+if c { ... } else { ...}  // conditional with else
+while c { ... }        // loop
+fn f(x: T) -> T { ... }              // function
+fn f<'a>(x: &'a T) -> &'a T { ... } // lifetime function
+spawn { ... }          // spawn block (Copy captures only)
+{ ... }                // block (own scope)
+```
+
+### Expressions
+
+```
+e + e   e - e   e * e   e / e     // arithmetic
+e && e  e || e  !e                 // boolean
+e == e  e != e  e < e  e > e      // comparison
+e <= e  e >= e
+&x      &mut x                     // borrow
+*e                                 // dereference
+[e, e, ...]                        // list literal
+list[i]                            // index read
+Ok(e)   Err(e)                     // Result constructors
+(e, e)                             // pair
+match e { pat => e, ... }          // pattern match
+if e then e else e                 // if expression
+let x = e in e                     // let expression
+f(e, ...)                          // function call
+spawn { ... }                      // spawn block
+```
+
+### Ownership rules
+
+- A non-Copy value can be used exactly once (affine/move semantics).
+- `int`, `bool`, and `&T` are Copy and can be used any number of times.
+- While a value is borrowed, it cannot be moved or mutated.
+- A mutable borrow is exclusive: no other borrow can coexist with it.
+- Borrows expire at their last use (non-lexical lifetimes).
+- Only Copy values can be captured by a `spawn` block.
