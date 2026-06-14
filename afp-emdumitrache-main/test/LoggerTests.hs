@@ -1,4 +1,4 @@
--- | Tests that the concurrent logger does not affect program results and
+-- Tests that the concurrent logger does not affect program results and
 -- that its background thread starts, drains, and stops cleanly.
 module LoggerTests where
 

@@ -1,5 +1,5 @@
 -- Interpreter tests: positive (correct value).
--- Negative type-checking cases are already covered in TypeCheckTests;
+-- Negative type-checking cases are already covered in TypeCheckTests.
 -- here we only test programs that should succeed end-to-end.
 module InterpTests where
 
@@ -130,7 +130,7 @@ test = hspec $ do
     interpTest "let b = true; let c = b; let d = b; if b then if c then 1 else 0 else 0"
                (VInt 1)
 
-  describe "Interpreter Phase 2B: Light still non-Copy, list still non-Copy (type-checked)" $ do
+  describe "Interpreter Phase 2B: Light still non-copy, list still non-copy (type-checked)" $ do
     interpTest "let x = 42; x + x"   (VInt 84)
     interpTest "let x = true; if x then 1 else 0"  (VInt 1)
 
@@ -159,6 +159,12 @@ test = hspec $ do
   describe "Interpreter Phase 2C: wildcard pattern" $ do
     interpTest "match Red { r => 42 }"                               (VInt 42)
     interpTest "let p = (1, 2); match p { w => 0 }"                 (VInt 0)
+
+  describe "Interpreter Phase 2C: equality of Light values" $ do
+    interpTest "Red == Red"    (VBool True)
+    interpTest "Red == Green"  (VBool False)
+    interpTest "Red != Green"  (VBool True)
+    interpTest "Green != Green" (VBool False)
 
   describe "Interpreter Phase 2C: spec example - safe division via Result" $ do
     interpTest

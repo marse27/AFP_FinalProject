@@ -1,10 +1,9 @@
--- | Type-checker tests: positive (accepts), negative (rejects), and
--- error-message tests (checks the error text) for Phase 0 features.
+-- Type-checker tests: positive (accepts), negative (rejects), and
+-- error-message tests (checks the error text).
 module TypeCheckTests where
 
 import Test.Hspec
 import Data.Either (isLeft)
-
 import Run       (infertype)
 import Lang.Abs  (Type (..))
 
@@ -86,6 +85,20 @@ test = hspec $ do
     tcErrorTest "1 && true"
     tcErrorTest "let x = 0; x + true"
 
+  describe "TypeChecker Phase 0: equality and inequality operators" $ do
+    tcTest "1 == 1"         TBool
+    tcTest "1 != 2"         TBool
+    tcTest "true == false"  TBool
+    tcTest "true != true"   TBool
+    tcTest "Red == Red"     TBool
+    tcTest "Red != Green"   TBool
+    tcErrorTest "let x = [1, 2]; let y = [1, 2]; x == y"
+    tcMsgTest   "let x = [1, 2]; let y = [1, 2]; x == y"  "Equality is only supported"
+    tcErrorTest "Ok(5) == Ok(5)"
+    tcMsgTest   "Ok(5) == Ok(5)"                           "Equality is only supported"
+    tcErrorTest "(1, 2) == (1, 2)"
+    tcMsgTest   "(1, 2) == (1, 2)"                         "Equality is only supported"
+
   describe "TypeChecker Phase 1: Light literal types" $ do
     tcTest "Red"    TLight
     tcTest "Yellow" TLight
@@ -142,6 +155,10 @@ test = hspec $ do
     tcErrorTest "let x = [1, true]"
     tcErrorTest "let x = Red; x[0]"
     tcMsgTest   "let x = Red; x[0]"  "index"
+    tcErrorTest "let x = [Red, Green]"
+    tcMsgTest   "let x = [Red, Green]"     "copyable"
+    tcErrorTest "let x = [[1, 2], [3, 4]]"
+    tcMsgTest   "let x = [[1, 2], [3, 4]]" "copyable"
 
   describe "TypeChecker Phase 2A: lists are move types" $ do
     tcErrorTest "let x = [1, 2]; let y = x; x"
@@ -165,7 +182,7 @@ test = hspec $ do
     tcTest "let b = true; let c = b; let d = b; b && c && d" TBool
     tcTest "fn g(a: bool) -> bool { a }; let b = true; g(b); g(b); b" TBool
 
-  describe "TypeChecker Phase 2B: Light and lists remain non-Copy" $ do
+  describe "TypeChecker Phase 2B: Light and lists remain non-copy" $ do
     tcErrorTest "let x = Red; let y = x; x"
     tcMsgTest   "let x = Red; let y = x; x"   "moved"
     tcErrorTest "let x = [1, 2]; let y = x; x"
@@ -212,7 +229,7 @@ test = hspec $ do
     tcErrorTest "match Red { Red => 1, Yellow => 2, Green => true }"
     tcMsgTest   "match Red { Red => 1, Yellow => 2, Green => true }" "expected"
 
-  describe "TypeChecker Phase 2C: Result is non-Copy when inner type is non-Copy" $ do
+  describe "TypeChecker Phase 2C: Result is non-copy when inner type is non-copy" $ do
     tcErrorTest "let r = Ok(Red); let s = r; r"
     tcMsgTest   "let r = Ok(Red); let s = r; r"  "moved"
 
@@ -229,7 +246,7 @@ test = hspec $ do
     tcTest "let x = 5; let r = &x; x + *r"                    TInt
     tcTest "let x = 5; let r = &x; *r + x"                    TInt
 
-  describe "TypeChecker Phase 3A: borrow that's still live prevents move of non-Copy value" $ do
+  describe "TypeChecker Phase 3A: borrow that's still live prevents move of non-copy value" $ do
     tcErrorTest "let x = Red; let r = &x; let v = x; *r"
     tcMsgTest   "let x = Red; let r = &x; let v = x; *r"      "borrowed"
     tcErrorTest "let x = [1, 2]; let r = &x; let v = x; *r"
@@ -246,6 +263,8 @@ test = hspec $ do
   describe "TypeChecker Phase 3A: cannot return a reference from a function" $ do
     tcErrorTest "fn bad(x: int) -> &int { &x }; 0"
     tcMsgTest   "fn bad(x: int) -> &int { &x }; 0"            "reference"
+    tcErrorTest "fn bad(x: int) -> &'a int { &x }; 0"
+    tcMsgTest   "fn bad(x: int) -> &'a int { &x }; 0"         "lifetime function"
 
   describe "TypeChecker Phase 3A: use-after-free detected (borrow would dangle)" $ do
     tcErrorTest "let y = Red; let mut r = &y; { let x = Red; r = &x }; *r"
@@ -276,7 +295,7 @@ test = hspec $ do
     tcErrorTest "let mut x = 5; let r = &x; let b = &mut x; *r + *b"
     tcMsgTest   "let mut x = 5; let r = &x; let b = &mut x; *r + *b" "already borrowed"
 
-  describe "TypeChecker Phase 3B: mutable borrow that's still live prevents move of non-Copy value" $ do
+  describe "TypeChecker Phase 3B: mutable borrow that's still live prevents move of non-copy value" $ do
     tcErrorTest "let mut x = Red; let b = &mut x; let v = x; *b"
     tcMsgTest   "let mut x = Red; let b = &mut x; let v = x; *b" "borrowed"
 
@@ -330,7 +349,7 @@ test = hspec $ do
   describe "TypeChecker Phase 3B: copying immutable ref - NLL expires both copies, then move allowed" $ do
     tcTest "let x = Red; let r = &x; let s = r; let dummy = *s; x" TLight
 
-  describe "TypeChecker Phase 3B: moving mutable ref propagates borrow - move of non-Copy referent blocked" $ do
+  describe "TypeChecker Phase 3B: moving mutable ref propagates borrow - move of non-copy referent blocked" $ do
     tcErrorTest "let mut x = Red; let b = &mut x; let c = b; let y = x; *c"
     tcMsgTest   "let mut x = Red; let b = &mut x; let c = b; let y = x; *c" "borrowed"
 
@@ -373,6 +392,12 @@ test = hspec $ do
     tcErrorTest "fn bad(x: &int) -> &int { x }; 0"
     tcMsgTest   "fn bad(x: &int) -> &int { x }; 0"                "reference"
 
+  describe "TypeChecker Phase 4A: lifetime function cannot return plain reference without lifetime" $ do
+    tcErrorTest "fn bad<'a>(x: &'a int) -> &int { x }; 0"
+    tcMsgTest   "fn bad<'a>(x: &'a int) -> &int { x }; 0"         "plain reference"
+    tcErrorTest "fn bad<'a>(x: &'a int) -> &mut int { x }; 0"
+    tcMsgTest   "fn bad<'a>(x: &'a int) -> &mut int { x }; 0"     "plain mutable reference"
+
   describe "TypeChecker Phase 4A: undeclared lifetime in return type is rejected" $ do
     tcErrorTest "fn bad<'a>(x: &'a int) -> &'b int { x }; 0"
     tcMsgTest   "fn bad<'a>(x: &'a int) -> &'b int { x }; 0"      "undeclared lifetime"
@@ -394,15 +419,15 @@ test = hspec $ do
     tcTest "let b = true; spawn { let c = b }; b"              TBool
     tcTest "spawn { let mut n = 0; n = n + 1 }; 0"             TInt
 
-  describe "TypeChecker Phase 4B: spawn - non-Copy captures rejected" $ do
+  describe "TypeChecker Phase 4B: spawn - non-copy captures rejected" $ do
     tcErrorTest "let x = Red; spawn { let y = x }; 0"
-    tcMsgTest   "let x = Red; spawn { let y = x }; 0"          "non-Copy"
+    tcMsgTest   "let x = Red; spawn { let y = x }; 0"          "non-copy"
     tcErrorTest "let x = [1, 2]; spawn { let y = x }; 0"
-    tcMsgTest   "let x = [1, 2]; spawn { let y = x }; 0"       "non-Copy"
+    tcMsgTest   "let x = [1, 2]; spawn { let y = x }; 0"       "non-copy"
 
   describe "TypeChecker Phase 4B: spawn - mutable reference (not Copy) rejected" $ do
     tcErrorTest "let mut x = 5; let b = &mut x; spawn { *b }; x"
-    tcMsgTest   "let mut x = 5; let b = &mut x; spawn { *b }; x" "non-Copy"
+    tcMsgTest   "let mut x = 5; let b = &mut x; spawn { *b }; x" "non-copy"
 
   describe "TypeChecker Phase 4B: spawn - immutable reference (Copy) is allowed" $ do
     tcTest "let x = 5; let r = &x; spawn { let y = *r }; *r"  TInt
@@ -413,8 +438,18 @@ test = hspec $ do
     tcErrorTest "fn consume(x: Light) -> () {}; let x = Red; if true { consume(x) } else { 0 }; x"
     tcErrorTest "fn consume(x: Light) -> () {}; let x = Red; if true { consume(x) } else { consume(x) }; x"
 
-  describe "TypeChecker Phase 0: while loop may not move outer non-Copy variables (issue #5)" $ do
+  describe "TypeChecker Phase 0: while loop may not move outer non-copy variables (issue #5)" $ do
     tcErrorTest "fn consume(x: Light) -> () {}; let x = Red; let mut i = 0; while i < 2 { consume(x); i = i + 1 }; 0"
     tcMsgTest   "fn consume(x: Light) -> () {}; let x = Red; let mut i = 0; while i < 2 { consume(x); i = i + 1 }; 0" "while loop"
     tcTest "let mut x = 0; while x < 5 { x = x + 1 }; x" TInt
     tcTest "fn consume(x: Light) -> () {}; let mut i = 0; while i < 2 { let y = Red; consume(y); i = i + 1 }; 0" TInt
+
+  describe "TypeChecker Phase 0: if-expression branches checked independently" $ do
+    tcTest    "fn consume(x: Light) -> int { 0 }; let x = Red; (if true then consume(x) else consume(x)); 0" TInt
+    tcErrorTest "fn consume(x: Light) -> int { 0 }; let x = Red; (if true then consume(x) else consume(x)); x"
+    tcMsgTest   "fn consume(x: Light) -> int { 0 }; let x = Red; (if true then consume(x) else consume(x)); x" "moved"
+
+  describe "TypeChecker Phase 2C: match arms checked independently (ownership)" $ do
+    tcTest    "fn consume(x: Light) -> int { 0 }; let x = Red; match Red { Red => consume(x), Yellow => consume(x), Green => consume(x) }; 0" TInt
+    tcErrorTest "fn consume(x: Light) -> int { 0 }; let x = Red; match Red { Red => consume(x), Yellow => consume(x), Green => consume(x) }; x"
+    tcMsgTest   "fn consume(x: Light) -> int { 0 }; let x = Red; match Red { Red => consume(x), Yellow => consume(x), Green => consume(x) }; x" "moved"
