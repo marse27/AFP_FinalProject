@@ -3,7 +3,6 @@ module Interp.Stmt (interp) where
 import Control.Monad.Except (throwError)
 import Control.Monad.State  (gets, modify)
 import qualified Data.Map.Strict as Map
-
 import Lang.Abs   (Block (..), Param (..), Stmt (..))
 import Context    (evalVars, evalFuns, view, over)
 import ScopeStack (lookupStack, insertTop, updateStack, push, pop)
@@ -30,7 +29,7 @@ interp (SAssign x e) = E.interp e >>= \v -> modify (over evalVars (updateStack x
 interp (SDerefAssign r e) = do
   vars <- gets (view evalVars)
   case lookupStack r vars of
-    Nothing -> throwError $ "Variable " ++ show r ++ " is not in scope"
+    Nothing -> throwError $ "Variable " ++ show r ++ " is not declared in scope"
     Just v  -> case v of
       VRefMut x -> do
         val <- E.interp e
@@ -47,7 +46,7 @@ interp (SDerefAssign r e) = do
 interp (SIndexAssign x i e) = do
   vars <- gets (view evalVars)
   case lookupStack x vars of
-    Nothing        -> throwError $ "Variable " ++ show x ++ " is not in scope"
+    Nothing        -> throwError $ "Variable " ++ show x ++ " is not declared in scope"
     Just (VList vs) -> do
       idx <- E.interp i
       val <- E.interp e
@@ -55,7 +54,7 @@ interp (SIndexAssign x i e) = do
         VInt n -> do
           newVs <- listSetAt (fromInteger n) val vs
           modify (over evalVars (updateStack x (VList newVs)))
-        _ -> throwError "List index must be an integer"
+        _ -> throwError "The The list index must be an integer"
     Just _ -> throwError $ show x ++ " is not a list"
 
 -- Here we execute adding a value to the end of a list, like list.push(e). 
@@ -64,7 +63,7 @@ interp (SIndexAssign x i e) = do
 interp (SPush x e) = do
   vars <- gets (view evalVars)
   case lookupStack x vars of
-    Nothing        -> throwError $ "Variable " ++ show x ++ " is not in scope"
+    Nothing        -> throwError $ "Variable " ++ show x ++ " is not declared in scope"
     Just (VList vs) -> do
       v <- E.interp e
       modify (over evalVars (updateStack x (VList (vs ++ [v]))))
@@ -76,7 +75,7 @@ interp (SPush x e) = do
 interp (SInsert x i e) = do
   vars <- gets (view evalVars)
   case lookupStack x vars of
-    Nothing        -> throwError $ "Variable " ++ show x ++ " is not in scope"
+    Nothing        -> throwError $ "Variable " ++ show x ++ " is not declared in scope"
     Just (VList vs) -> do
       idx <- E.interp i
       val <- E.interp e
@@ -84,7 +83,7 @@ interp (SInsert x i e) = do
         VInt n -> do
           newVs <- listInsertAt (fromInteger n) val vs
           modify (over evalVars (updateStack x (VList newVs)))
-        _      -> throwError "List index must be an integer"
+        _      -> throwError "The list index must be an integer"
     Just _ -> throwError $ show x ++ " is not a list"
 
 -- Here we execute removing a value from a list, like list.remove(i). 
@@ -93,14 +92,14 @@ interp (SInsert x i e) = do
 interp (SRemove x i) = do
   vars <- gets (view evalVars)
   case lookupStack x vars of
-    Nothing        -> throwError $ "Variable " ++ show x ++ " is not in scope"
+    Nothing        -> throwError $ "Variable " ++ show x ++ " is not declared in scope"
     Just (VList vs) -> do
       idx <- E.interp i
       case idx of
         VInt n -> do
           newVs <- listRemoveAt (fromInteger n) vs
           modify (over evalVars (updateStack x (VList newVs)))
-        _ -> throwError "List index must be an integer"
+        _ -> throwError "The list index must be an integer"
     Just _ -> throwError $ show x ++ " is not a list"
 
 -- Here we execute a block of statements. 
@@ -116,7 +115,7 @@ interp (SIf cond body) = do
   case v of
     VBool True  -> interpBlock body
     VBool False -> return ()
-    _           -> throwError "If condition must be a boolean"
+    _           -> throwError "The if condition must be a boolean"
 
 -- Here we execute an if-else statement. 
 -- The condition is evaluated first. 
@@ -127,7 +126,7 @@ interp (SIfElse cond tbody fbody) = do
   case v of
     VBool True  -> interpBlock tbody
     VBool False -> interpBlock fbody
-    _           -> throwError "If condition must be a boolean"
+    _           -> throwError "The if condition must be a boolean"
 
 -- Here we execute a while loop. 
 -- The condition is checked before every loop iteration. 

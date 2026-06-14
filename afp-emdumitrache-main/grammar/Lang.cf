@@ -1,5 +1,3 @@
--- A program is a list of statements; the final statement is the return value.
-
 entrypoints Program;
 
 Program. Program ::= [Stmt] ;
@@ -17,7 +15,7 @@ TPair.    Type1 ::= "(" Type "," Type ")" ;
 TRefMut.   Type1 ::= "&" "mut" Type ;
 TRef.      Type1 ::= "&" Type ;
 
--- Explicit lifetime-annotated reference types (Phase 4A)
+-- Explicit lifetime-annotated reference types
 TRefMutLt. Type1 ::= "&" "mut" "'" Ident Type ;
 TRefLt.    Type1 ::= "&" "'" Ident Type ;
 
@@ -54,7 +52,7 @@ SFunLt.       Stmt ::= "fn" Ident "<" [Lifetime] ">" "(" [Param] ")" "->" Type B
 SSpawn.       Stmt ::= "spawn" Block ;
 SExpr.        Stmt ::= Exp ;
 
--- Lifetime names (Phase 4A): 'a  parsed as keyword ' followed by identifier
+-- Lifetime names: 'a  parsed as keyword ' followed by identifier
 MkLifetime. Lifetime ::= "'" Ident ;
 separator nonempty Lifetime "," ;
 
@@ -65,15 +63,15 @@ EInt.         Exp8 ::= Integer ;
 ETrue.        Exp8 ::= "true" ;
 EFalse.       Exp8 ::= "false" ;
 
--- Light constructors (Phase 1)
+-- Light constructors
 ELightRed.    Exp8 ::= "Red" ;
 ELightYellow. Exp8 ::= "Yellow" ;
 ELightGreen.  Exp8 ::= "Green" ;
 
--- List literal (Phase 2A)
+-- List literal
 EList.        Exp8 ::= "[" [Exp] "]" ;
 
--- Result constructors (Phase 2C)
+-- Result constructors
 EOk.          Exp8 ::= "Ok"  "(" Exp ")" ;
 EErr.         Exp8 ::= "Err" "(" Exp ")" ;
 
@@ -87,19 +85,19 @@ EIndex.       Exp8 ::= Ident "[" Exp "]" ;
 -- Variable
 EVar.         Exp8 ::= Ident ;
 
--- Pair literal (Phase 2C): "(" Exp "," Exp ")"
+-- Pair literal: "(" Exp "," Exp ")"
 EPair.        Exp8 ::= "(" Exp "," Exp ")" ;
 
--- Mutable borrow expression (Phase 3B): "&" "mut" Ident
+-- Mutable borrow expression: "&" "mut" Ident
 ERefMut.      Exp8 ::= "&" "mut" Ident ;
 
--- Borrow expression (Phase 3A): "&" Ident
+-- Borrow expression: "&" Ident
 ERef.         Exp8 ::= "&" Ident ;
 
 -- Unary negation
 ENeg. Exp7 ::= "-" Exp8 ;
 
--- Dereference (Phase 3A): "*" Exp8
+-- Dereference: "*" Exp8
 EDeref. Exp7 ::= "*" Exp8 ;
 
 -- Multiplication and division
@@ -131,7 +129,7 @@ EIf.  Exp  ::= "if" Exp "then" Exp "else" Exp ;
 -- let-in expression
 ELet. Exp  ::= "let" Ident "=" Exp "in" Exp ;
 
--- Match patterns (Phase 2C)
+-- Match patterns
 PLightRed.    Pat ::= "Red" ;
 PLightYellow. Pat ::= "Yellow" ;
 PLightGreen.  Pat ::= "Green" ;
@@ -144,7 +142,7 @@ PVar.         Pat ::= Ident ;
 MatchArm.     Arm ::= Pat "=>" Exp ;
 separator     Arm "," ;
 
--- Match expression (Phase 2C)
+-- Match expression
 EMatch.       Exp ::= "match" Exp "{" [Arm] "}" ;
 
 -- Precedence coercions

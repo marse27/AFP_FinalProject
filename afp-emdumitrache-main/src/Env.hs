@@ -1,7 +1,6 @@
 module Env where
 
 import qualified Data.Map as Map
-
 import Lang.Abs ( Ident )
 
 -- This is a simple environment. 

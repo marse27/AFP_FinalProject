@@ -4,7 +4,6 @@ import Control.Monad        (when)
 import Control.Monad.Except (throwError)
 import Control.Monad.State  (gets, modify)
 import qualified Data.Map.Strict as Map
-
 import Lang.Abs   (Arm (..), Block (..), Exp (..), Ident, Pat (..), Param (..), Stmt (..))
 import Context    (evalVars, evalFuns, view, over)
 import ScopeStack (lookupStack, insertTop, push, pop)
@@ -162,7 +161,7 @@ interp (EMatch e arms) = do
 -- If an arm matches, any variables introduced by the pattern are added in a temporary scope while the arm body is evaluated. 
 -- If no arm matches, this is a runtime error.
 matchArms :: Value -> [Arm] -> Eval Value
-matchArms _ [] = throwError "Non-exhaustive match: no arm matched at runtime"
+matchArms _ [] = throwError "No arm matched at runtime"
 matchArms v (MatchArm pat body : rest) =
   case tryMatch v pat of
     Nothing    -> matchArms v rest
@@ -207,10 +206,10 @@ runBody (Block (s : rest))   = S.interp s >> runBody (Block rest)
 -- If the index is outside the list, an error is thrown.
 listGet :: Int -> [Value] -> Eval Value
 listGet i vs
-  | i < 0    = throwError $ "List index " ++ show i ++ " cannot be negative"
+  | i < 0    = throwError $ "Index " ++ show i ++ " cannot be negative"
   | otherwise = case drop i vs of
       (v:_) -> return v
-      []    -> throwError $ "List index " ++ show i ++ " out of bounds"
+      []    -> throwError $ "Index " ++ show i ++ " is out of bounds"
 
 -- Here we evaluate arithmetic operations like +, -, *, and /. 
 -- Both expressions are evaluated first. 
@@ -220,7 +219,7 @@ arithm e1 e2 f = do
   v1 <- interp e1; v2 <- interp e2
   case (v1, v2) of
     (VInt a, VInt b) -> return $ VInt (f a b)
-    _                -> throwError "Arithmetic on non-integers"
+    _                -> throwError "Arithmetic on non-integers elements"
 
 -- Here we evaluate boolean operations like && and ||. 
 -- Both expressions are evaluated first. 
@@ -230,7 +229,7 @@ logicOp e1 e2 f = do
   v1 <- interp e1; v2 <- interp e2
   case (v1, v2) of
     (VBool a, VBool b) -> return $ VBool (f a b)
-    _                  -> throwError "Boolean operation on non-booleans"
+    _                  -> throwError "Boolean operation on non-booleans elements"
 
 -- Here we evaluate equality checks. 
 -- Integers, booleans, and Light values can be compared. 
@@ -247,7 +246,7 @@ eqOp e1 e2 = do
     (VLightRed,    _)            -> return $ VBool False
     (VLightYellow, _)            -> return $ VBool False
     (VLightGreen,  _)            -> return $ VBool False
-    _                            -> throwError "Cannot compare values of different types"
+    _                            -> throwError "Cannot compare elements with values of different types"
 
 -- Here we evaluate comparisons like <, >, <=, and >=. 
 -- Both expressions are evaluated first. 
@@ -257,4 +256,4 @@ cmpOp e1 e2 f = do
   v1 <- interp e1; v2 <- interp e2
   case (v1, v2) of
     (VInt a, VInt b) -> return $ VBool (f a b)
-    _                -> throwError "Comparison on non-integers"
+    _                -> throwError "Comparison on non-integers elements"

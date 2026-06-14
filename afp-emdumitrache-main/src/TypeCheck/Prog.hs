@@ -11,7 +11,7 @@ import qualified TypeCheck.Expr as E
 -- Each statement is checked one by one.
 -- After each statement, borrows that are not used anymore are released early.
 infer :: Program -> Tc Type
-infer (Program [])         = throwError "Missing return statement"
+infer (Program [])         = throwError "The progrom is missing a return statement"
 infer (Program [SExpr e])  = E.infer e
 infer (Program (s : rest)) = do
   S.infer s

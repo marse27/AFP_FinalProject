@@ -3,12 +3,9 @@ module TypeCheck.Expr (infer, check) where
 import Control.Monad        (unless, when)
 import Control.Monad.Except (throwError)
 import Control.Monad.State  (get, gets, modify, put)
-
 import qualified Data.Map.Strict as Map
-
 import Lang.Abs   (Arm (..), Exp (..), Pat (..), Type (..))
 import Lang.Print (printTree)
-
 import Context         (TcCtx, VarInfo (..), tcVars, tcFuns, view, over)
 import ScopeStack      (lookupStack, insertTop, updateStack, push, pop)
 import Tc              (Tc)
@@ -27,7 +24,7 @@ check e expected = do
     " but has type " ++ printTree actual
 
 -- Basic expressions and operators.
--- Values like numbers, booleans, and lights already have a known type.
+-- Values like integers, booleans, and lights already have a known type.
 -- Operators first check their inputs, then return the correct result type.
 infer :: Exp -> Tc Type
 infer (EInt _)        = return TInt
@@ -92,11 +89,11 @@ infer (ELet x e body) = do
 infer (EVar x) = do
   vars <- gets (view tcVars)
   case lookupStack x vars of
-    Nothing -> throwError $ "Variable " ++ show x ++ " is not bound"
+    Nothing -> throwError $ "The variable " ++ show x ++ " is not bound"
     Just vi  -> do
       let t = varType vi
       unless (isCopyable t || varOwned vi) $
-        throwError $ "Value of " ++ printTree x ++ " used after being moved"
+        throwError $ "The value of " ++ printTree x ++ " used after being moved"
       when (not (isCopyable t) && (varBorrows vi > 0 || varMutBorrows vi > 0)) $
         throwError $ "Cannot move " ++ printTree x ++ ": value is borrowed"
       unless (isCopyable t) $
@@ -141,7 +138,7 @@ infer (EList []) = throwError "Cannot infer type of empty list literal"
 infer (EList (e:es)) = do
   t <- infer e
   unless (isCopyable t) $
-    throwError $ "List element type must be copyable, but got " ++ printTree t
+    throwError $ "The list element type must be copyable, but got " ++ printTree t
   mapM_ (`check` t) es
   return (TList t)
 
@@ -150,10 +147,10 @@ infer (EList (e:es)) = do
 infer (EIndex x i) = do
   vars <- gets (view tcVars)
   case lookupStack x vars of
-    Nothing -> throwError $ "Variable " ++ printTree x ++ " is not bound"
+    Nothing -> throwError $ "The variable " ++ printTree x ++ " is not bound"
     Just vi -> do
       unless (varOwned vi) $
-        throwError $ "Value of " ++ printTree x ++ " used after being moved"
+        throwError $ "The value of " ++ printTree x ++ " used after being moved"
       when (varMutBorrows vi > 0) $
         throwError $ "Cannot read " ++ printTree x ++ "[i]: list has an active mutable borrow"
       case varType vi of
@@ -175,7 +172,7 @@ infer (EPair e1 e2) = TPair <$> infer e1 <*> infer e2
 infer (ERef x) = do
   vars <- gets (view tcVars)
   case lookupStack x vars of
-    Nothing -> throwError $ "Variable " ++ printTree x ++ " is not bound"
+    Nothing -> throwError $ "The variable " ++ printTree x ++ " is not bound"
     Just vi -> do
       unless (varOwned vi) $ throwError $
         "Cannot borrow " ++ printTree x ++ ": value has been moved"
@@ -189,7 +186,7 @@ infer (ERef x) = do
 infer (ERefMut x) = do
   vars <- gets (view tcVars)
   case lookupStack x vars of
-    Nothing -> throwError $ "Variable " ++ printTree x ++ " is not bound"
+    Nothing -> throwError $ "The variable " ++ printTree x ++ " is not bound"
     Just vi -> do
       unless (varOwned vi) $ throwError $
         "Cannot borrow " ++ printTree x ++ ": value has been moved"
@@ -207,10 +204,10 @@ infer (ERefMut x) = do
 infer (EDeref (EVar r)) = do
   vars <- gets (view tcVars)
   case lookupStack r vars of
-    Nothing -> throwError $ "Variable " ++ printTree r ++ " is not bound"
+    Nothing -> throwError $ "The variable " ++ printTree r ++ " is not bound"
     Just vi -> do
       unless (varOwned vi) $ throwError $
-        "Value of " ++ printTree r ++ " used after being moved"
+        "The value of " ++ printTree r ++ " used after being moved"
       case varType vi of
         TRef inner      -> return inner
         TRefMut inner   -> return inner

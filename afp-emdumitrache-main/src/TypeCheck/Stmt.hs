@@ -8,10 +8,8 @@ import Data.List            (findIndex)
 import Data.Maybe           (isJust)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set        as Set
-
 import Lang.Abs   (Arm (..), Block (..), Exp (..), Ident, Lifetime (..), Param (..), Stmt (..), Type (..))
 import Lang.Print (printTree)
-
 import Context         (TcCtx, VarInfo (..), tcVars, tcFuns, view, over)
 import ScopeStack      (lookupStack, insertTop, updateStack, push, pop, topBindings)
 import qualified ScopeStack as SS
@@ -57,7 +55,7 @@ infer (SLetMut x e) = E.infer e >>= \t ->
 infer (SAssign r (ERef x)) = do
   vars <- gets (view tcVars)
   case (lookupStack r vars, lookupStack x vars) of
-    (Nothing, _) -> throwError $ "Variable " ++ printTree r ++ " is not in scope"
+    (Nothing, _) -> throwError $ "Variable " ++ printTree r ++ " is not declared in scope"
     (_, Nothing) -> throwError $ "Variable " ++ printTree x ++ " is not bound"
     (Just rvi, Just xvi) -> do
       unless (varMut rvi) $ throwError $
@@ -82,7 +80,7 @@ infer (SAssign r (ERef x)) = do
 infer (SAssign r (ERefMut x)) = do
   vars <- gets (view tcVars)
   case (lookupStack r vars, lookupStack x vars) of
-    (Nothing, _) -> throwError $ "Variable " ++ printTree r ++ " is not in scope"
+    (Nothing, _) -> throwError $ "Variable " ++ printTree r ++ " is not declared in scope"
     (_, Nothing) -> throwError $ "Variable " ++ printTree x ++ " is not bound"
     (Just rvi, Just xvi) -> do
       unless (varMut rvi) $ throwError $
@@ -109,13 +107,13 @@ infer (SAssign r (ERefMut x)) = do
 infer (SAssign s (EVar r)) = do
   vars <- gets (view tcVars)
   case (lookupStack s vars, lookupStack r vars) of
-    (Nothing, _) -> throwError $ "Variable " ++ printTree s ++ " is not in scope"
+    (Nothing, _) -> throwError $ "Variable " ++ printTree s ++ " is not declared in scope"
     (_, Nothing) -> throwError $ "Variable " ++ printTree r ++ " is not bound"
     (Just svi, Just rvi) -> do
       unless (varMut svi) $ throwError $
         "Cannot assign to immutable variable " ++ printTree s
       when (varBorrows svi > 0 || varMutBorrows svi > 0) $ throwError $
-        "Cannot assign to " ++ printTree s ++ ": value is borrowed"
+        "Cannot assign to " ++ printTree s ++ ": the value is borrowed"
       unless (varType svi == varType rvi) $ throwError $
         "Type mismatch in assignment: expected " ++ printTree (varType svi) ++
         " but got " ++ printTree (varType rvi)
@@ -131,7 +129,7 @@ infer (SAssign s (EVar r)) = do
             Just x -> do
               xvars <- gets (view tcVars)
               case lookupStack x xvars of
-                Nothing  -> throwError $ "Variable " ++ printTree x ++ " is not in scope"
+                Nothing  -> throwError $ "Variable " ++ printTree x ++ " is not declared in scope"
                 Just xvi -> do
                   when (varMutBorrows xvi > 0) $ throwError $
                     "Cannot copy borrow of " ++ printTree x ++ ": already mutably borrowed"
@@ -164,12 +162,12 @@ infer (SAssign s (EVar r)) = do
 infer (SAssign x e) = do
   vars <- gets (view tcVars)
   case lookupStack x vars of
-    Nothing -> throwError $ "Variable " ++ printTree x ++ " is not in scope"
+    Nothing -> throwError $ "Variable " ++ printTree x ++ " is not declared in scope"
     Just vi -> do
       unless (varMut vi) $ throwError $
         "Cannot assign to immutable variable " ++ printTree x
       when (varBorrows vi > 0 || varMutBorrows vi > 0) $ throwError $
-        "Cannot assign to " ++ printTree x ++ ": value is borrowed"
+        "Cannot assign to " ++ printTree x ++ ": the value is borrowed"
       E.check e (varType vi)
       releaseVarBorrow vi
       modify (over tcVars (updateStack x vi { varOwned = True, varBorrowOf = Nothing }))
@@ -181,7 +179,7 @@ infer (SAssign x e) = do
 infer (SDerefAssign r e) = do
   vars <- gets (view tcVars)
   case lookupStack r vars of
-    Nothing -> throwError $ "Variable " ++ printTree r ++ " is not in scope"
+    Nothing -> throwError $ "Variable " ++ printTree r ++ " is not declared in scope"
     Just vi -> do
       unless (varOwned vi) $ throwError $
         "Value of " ++ printTree r ++ " used after being moved"
@@ -201,7 +199,7 @@ infer (SDerefAssign r e) = do
 infer (SIndexAssign x i e) = do
   vars <- gets (view tcVars)
   case lookupStack x vars of
-    Nothing -> throwError $ "Variable " ++ printTree x ++ " is not in scope"
+    Nothing -> throwError $ "Variable " ++ printTree x ++ " is not declared in scope"
     Just vi -> do
       unless (varMut vi)   $ throwError $ "Cannot mutate immutable list " ++ printTree x
       unless (varOwned vi) $ throwError $ "Value of " ++ printTree x ++ " used after being moved"
@@ -217,7 +215,7 @@ infer (SIndexAssign x i e) = do
 infer (SPush x e) = do
   vars <- gets (view tcVars)
   case lookupStack x vars of
-    Nothing -> throwError $ "Variable " ++ printTree x ++ " is not in scope"
+    Nothing -> throwError $ "Variable " ++ printTree x ++ " is not declared in scope"
     Just vi -> do
       unless (varMut vi)   $ throwError $ "Cannot mutate immutable list " ++ printTree x
       unless (varOwned vi) $ throwError $ "Value of " ++ printTree x ++ " used after being moved"
@@ -233,7 +231,7 @@ infer (SPush x e) = do
 infer (SInsert x i e) = do
   vars <- gets (view tcVars)
   case lookupStack x vars of
-    Nothing -> throwError $ "Variable " ++ printTree x ++ " is not in scope"
+    Nothing -> throwError $ "Variable " ++ printTree x ++ " is not declared in scope"
     Just vi -> do
       unless (varMut vi)   $ throwError $ "Cannot mutate immutable list " ++ printTree x
       unless (varOwned vi) $ throwError $ "Value of " ++ printTree x ++ " used after being moved"
@@ -249,7 +247,7 @@ infer (SInsert x i e) = do
 infer (SRemove x i) = do
   vars <- gets (view tcVars)
   case lookupStack x vars of
-    Nothing -> throwError $ "Variable " ++ printTree x ++ " is not in scope"
+    Nothing -> throwError $ "Variable " ++ printTree x ++ " is not declared in scope"
     Just vi -> do
       unless (varMut vi)   $ throwError $ "Cannot mutate immutable list " ++ printTree x
       unless (varOwned vi) $ throwError $ "Value of " ++ printTree x ++ " used after being moved"
@@ -357,7 +355,7 @@ infer (SSpawn body) = do
   let checkCapture x = case lookupStack x vars of
         Nothing -> return ()
         Just vi -> unless (isCopyable (varType vi)) $ throwError $
-          "Cannot capture non-Copy variable '" ++ printTree x ++ "' in spawn block"
+          "Cannot capture non-copy variable '" ++ printTree x ++ "' in spawn block"
   mapM_ checkCapture (Set.toList freeVs)
   checkBlock body
 
@@ -384,7 +382,7 @@ callAndBind r f args isMut = do
         Just z  -> do
           vars <- gets (view tcVars)
           case lookupStack z vars of
-            Nothing  -> throwError $ "Variable " ++ printTree z ++ " is not in scope"
+            Nothing  -> throwError $ "Variable " ++ printTree z ++ " is not declared in scope"
             Just zvi -> case boundType of
               TRef _ -> do
                 when (varMutBorrows zvi > 0) $ throwError $
@@ -453,7 +451,7 @@ checkStmtsNLL (s:rest) = do
 -- While checking the body, unused borrows are also released early.
 checkBody :: Type -> Block -> Tc ()
 checkBody TVoid (Block stmts) = checkStmtsNLL stmts
-checkBody _     (Block [])    = throwError "Missing return expression in function body"
+checkBody _     (Block [])    = throwError "The function body is missing a return statement"
 checkBody retTy (Block [SExpr e])  = E.check e retTy
 checkBody retTy (Block (s : rest)) = do
   infer s
@@ -667,7 +665,7 @@ checkNoLoopMoves ctxBefore ctxAfter = do
     checkNotMoved varsAfter (x, _) =
       case lookupStack x varsAfter of
         Just vi | not (varOwned vi) -> throwError $
-          "Cannot move non-Copy variable '" ++ printTree x ++
+          "Cannot move non-copy variable '" ++ printTree x ++
           "' inside a while loop: value would be invalid on the second iteration"
         _ -> return ()
 
@@ -707,7 +705,7 @@ copyOrMoveRef s r isMut = do
             Just x -> do
               xvars <- gets (view tcVars)
               case lookupStack x xvars of
-                Nothing  -> throwError $ "Variable " ++ printTree x ++ " is not in scope"
+                Nothing  -> throwError $ "Variable " ++ printTree x ++ " is not declared in scope"
                 Just xvi -> do
                   when (varMutBorrows xvi > 0) $ throwError $
                     "Cannot copy borrow of " ++ printTree x ++ ": already mutably borrowed"

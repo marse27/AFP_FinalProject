@@ -1,5 +1,4 @@
--- Interpreter monad: ExceptT for runtime errors layered over State for the
--- evaluation context. All Interp.* modules run inside this stack.
+-- Interpreter monad: ExceptT for runtime errors
 module Eval
   ( Eval
   , runEval

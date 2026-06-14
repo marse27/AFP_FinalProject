@@ -1,4 +1,4 @@
--- Typing and evaluation contexts, plus van Laarhoven lenses for their fields.
+-- Typing and evaluation contexts and van Laarhoven lenses
 module Context
   ( TcCtx (..)
   , EvalCtx (..)
@@ -14,7 +14,6 @@ module Context
 import qualified Data.Map.Strict as Map
 import Data.Functor.Const    (Const (..))
 import Data.Functor.Identity (Identity (..))
-
 import Lang.Abs   (Ident, Type)
 import ScopeStack (ScopeStack)
 import qualified ScopeStack as SS
@@ -36,10 +35,12 @@ set :: Lens' s a -> a -> s -> s
 set l v = over l (const v)
 
 -- Per-variable information tracked by the type checker.
--- varOwned = False means the value was moved away.
--- varBorrows counts active immutable borrows of this variable.
--- varMutBorrows counts active mutable borrows of this variable (max 1 by exclusivity).
--- varBorrowOf = Just x means this variable is a reference holding a borrow of x.
+-- varType is the static type of the variable.
+-- varMut = True means the variable was declared with let mut and can be reassigned or mutated.
+-- varOwned = False means the value has been moved away and the variable can no longer be used.
+-- varBorrows counts how many active immutable borrows of this variable currently exist.
+-- varMutBorrows counts active mutable borrows; exclusivity requires this to be at most 1 and zero immutable borrows to coexist.
+-- varBorrowOf = Just x means this variable is a reference holding a borrow of x; Nothing means it is not a tracked reference.
 data VarInfo = VarInfo
   { varType       :: Type
   , varMut        :: Bool

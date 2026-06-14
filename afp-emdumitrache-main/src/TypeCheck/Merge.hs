@@ -1,4 +1,4 @@
--- Shared context-merge helpers used by both TypeCheck.Expr and TypeCheck.Stmt.
+-- Shared context-merge helpers
 module TypeCheck.Merge (mergeVarInfo, mergeContexts) where
 
 import qualified Data.Map.Strict as Map
