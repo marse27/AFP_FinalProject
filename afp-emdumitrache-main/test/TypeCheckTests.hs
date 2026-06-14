@@ -357,6 +357,12 @@ test = hspec $ do
     tcErrorTest "let mut x = 5; let b = &mut x; let c = b; *b"
     tcMsgTest   "let mut x = 5; let b = &mut x; let c = b; *b" "used after being moved"
 
+  describe "TypeChecker Phase 3B: reassigning r = &x when r already borrows x - borrow count stays correct" $ do
+    tcTest "let x = Red; let mut r = &x; r = &x; x"                TLight
+    tcTest "let mut x = 5; let mut r = &x; r = &x; x"              TInt
+    tcErrorTest "let x = Red; let mut r = &x; r = &x; let y = x; *r"
+    tcMsgTest   "let x = Red; let mut r = &x; r = &x; let y = x; *r" "borrowed"
+
   describe "TypeChecker Phase 3B: assigning immutable ref copy via s = r propagates borrow" $ do
     tcErrorTest "let x = Red; let r = &x; let mut s = &x; s = r; let y = x; *s"
     tcMsgTest   "let x = Red; let r = &x; let mut s = &x; s = r; let y = x; *s" "borrowed"

@@ -68,8 +68,12 @@ infer (SAssign r (ERef x)) = do
       when (varMutBorrows xvi > 0) $ throwError $
         "Cannot borrow " ++ printTree x ++ ": already mutably borrowed"
       releaseVarBorrow rvi
-      modify (over tcVars (updateStack x xvi { varBorrows = varBorrows xvi + 1 }))
-      modify (over tcVars (updateStack r rvi { varOwned = True, varBorrowOf = Just x }))
+      freshVars <- gets (view tcVars)
+      case lookupStack x freshVars of
+        Nothing   -> throwError $ "Variable " ++ printTree x ++ " is not bound"
+        Just xvi2 -> do
+          modify (over tcVars (updateStack x xvi2 { varBorrows = varBorrows xvi2 + 1 }))
+          modify (over tcVars (updateStack r rvi { varOwned = True, varBorrowOf = Just x }))
 
 -- Here we handle assigning a mutable borrow to an existing variable, like r = &mut x.
 -- The variable r must already exist, must be mutable, and must have the right mutable reference type.
