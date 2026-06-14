@@ -1,10 +1,10 @@
-# Design Document — AFP Ownership Type System
+# Design Document - AFP Ownership Type System
 
 ## Overview
 
 A type checker and interpreter for a small Rust-like language with ownership,
 borrowing, non-lexical lifetimes, explicit lifetime annotations, and user-facing
-multithreading — implemented in Haskell. Targets all four phases (0–4) of the AFP
+multithreading - implemented in Haskell. Targets all four phases (0–4) of the AFP
 spec plus all required techniques and bonus items.
 
 ---
@@ -115,7 +115,7 @@ let x = expr in expr       // functional-style let (still supported)
 
 ## Example Programs
 
-### Phase 0 — Mutable variables, control flow, functions
+### Phase 0 - Mutable variables, control flow, functions
 
 ```rust
 fn double(x: int) -> int { x + x };
@@ -129,7 +129,7 @@ add(double(y), 42)
 // → 52
 ```
 
-### Phase 1 — Affine types (move semantics)
+### Phase 1 - Affine types (move semantics)
 
 ```rust
 let x = Red;
@@ -146,7 +146,7 @@ consume(x);
 // → 0
 ```
 
-### Phase 2A — Lists
+### Phase 2A - Lists
 
 ```rust
 let mut list = [1, 2];
@@ -159,7 +159,7 @@ snd
 // → 2
 ```
 
-### Phase 2C — Result + pattern matching
+### Phase 2C - Result + pattern matching
 
 ```rust
 fn safe_div(x: int, y: int) -> Result<int> {
@@ -170,7 +170,7 @@ match r { Ok(v) => v, Err(e) => e }
 // → 42
 ```
 
-### Phase 3A — Immutable borrows
+### Phase 3A - Immutable borrows
 
 ```rust
 fn deref_int(r: &int) -> int { *r };
@@ -180,7 +180,7 @@ deref_int(r) + x
 // → 84   (r is a borrow; x is still accessible)
 ```
 
-### Phase 3B — Mutable borrows
+### Phase 3B - Mutable borrows
 
 ```rust
 fn set_red(mut light: &mut Light) -> () { *light = Red };
@@ -190,18 +190,18 @@ l
 // → Red
 ```
 
-### Phase 3C — Non-lexical lifetimes
+### Phase 3C - Non-lexical lifetimes
 
 ```rust
 let mut x = 5;
 let r = &x;
-*r;            // last use of r — borrow of x expires here (NLL)
+*r;            // last use of r - borrow of x expires here (NLL)
 x = 10;        // safe: r is no longer live
 x
 // → 10
 ```
 
-### Phase 4A — Explicit lifetime annotations
+### Phase 4A - Explicit lifetime annotations
 
 ```rust
 fn first<'a, 'b>(x: &'a int, y: &'b int) -> &'a int { x };
@@ -212,7 +212,7 @@ let r = first(&a, &b);
 // → 3  (r borrows a; type checker tracks this across the call boundary)
 ```
 
-### Phase 4B — User-facing spawn
+### Phase 4B - User-facing spawn
 
 ```rust
 let x = 5;
@@ -239,9 +239,9 @@ x
 newtype ScopeStack a = ScopeStack [Map.Map Ident a]
 ```
 
-- `push` / `pop` are O(1) list cons/tail — the old stack remains valid (full persistence).
+- `push` / `pop` are O(1) list cons/tail - the old stack remains valid (full persistence).
 - `lookupStack` searches from the innermost frame outward, implementing **lexical scoping**.
-- `updateStack` rewrites the first frame that contains the name — this is how mutable assignment inside inner blocks correctly propagates to outer scopes without breaking the persistent structure.
+- `updateStack` rewrites the first frame that contains the name - this is how mutable assignment inside inner blocks correctly propagates to outer scopes without breaking the persistent structure.
 - `insertTop` shadows outer bindings by inserting into the innermost frame only.
 
 **Advanced usage** (used throughout all phases): the same structure is the sole
@@ -267,7 +267,7 @@ Four lenses focus into `TcCtx` and `EvalCtx`: `tcVars`, `tcFuns`, `evalVars`,
 `evalFuns`. Every TypeCheck and Interp module uses `modify (over tcVars ...)` to
 update nested fields without boilerplate record syntax.
 
-**Advanced usage — NLL traversal with `Const` applicative as a structural fold**
+**Advanced usage - NLL traversal with `Const` applicative as a structural fold**
 (`TypeCheck/Stmt.hs:releaseExpiredBorrows`):
 
 ```haskell
@@ -301,7 +301,7 @@ type Eval a = ExceptT String (State EvalCtx) a
 `ExceptT` provides typed errors that short-circuit on the first failure;
 `State` threads the mutable typing / evaluation context. All `TypeCheck.*` and
 `Interp.*` modules run inside `Tc` / `Eval` respectively, using `throwError`,
-`gets`, `modify` from `mtl`. The two stacks are structurally identical —
+`gets`, `modify` from `mtl`. The two stacks are structurally identical -
 different context types give different capabilities with the same combinator
 vocabulary.
 
@@ -335,7 +335,7 @@ Immutable borrows (`&T`, `TRef`) are Copy and can be shared; mutable borrows
 **Advanced usage**: the two concurrency mechanisms together demonstrate both
 _infrastructure-level_ concurrency (the logger) and _language-level_ concurrency
 (spawn as a type-checked language construct). The ownership type system IS the
-thread-safety story — no locks required.
+thread-safety story - no locks required.
 
 ---
 
@@ -380,7 +380,7 @@ with a GHC **hs-boot file** (`src/Interp/Stmt.hs-boot`), which declares the
 
 A flat map cannot represent lexical scoping or inner-block shadowing. `ScopeStack`
 gives O(1) scope entry/exit and natural shadowing. Its persistence means the
-old stack is never mutated — we pass it through the `State` monad and let GHC's
+old stack is never mutated - we pass it through the `State` monad and let GHC's
 thunk-sharing recycle frames. The alternative (a `ReaderT (IORef ...)`) would
 have lost the purely-functional property required by the course.
 
@@ -394,14 +394,14 @@ zero overhead beyond what a plain fold would cost.
 
 ### Why `ExceptT String (State …)` and not `Either + Reader`?
 
-`Either` doesn't thread mutable state — we need `State` to update variable
+`Either` doesn't thread mutable state - we need `State` to update variable
 ownership flags, borrow counts, and the function table during checking. `Reader`
 is immutable. The `ExceptT/State` stack gives both: errors short-circuit via
 `throwError`, state persists via `gets`/`modify`. All checker and interpreter
 functions are simple `Tc`/`Eval` actions; there are no `IO` or `unsafePerformIO`
 calls in the core logic.
 
-### NLL — borrow expiry before scope end
+### NLL - borrow expiry before scope end
 
 Classical lexical lifetimes expire borrows at `}`. Non-lexical lifetimes (NLL)
 expire them at the last syntactic use. Implementation: after each statement in
@@ -410,7 +410,7 @@ expire them at the last syntactic use. Implementation: after each statement in
 appears syntactically, it stays live). The `Const` applicative fold collects
 all top-scope borrow variables not in the live set and releases them in one pass.
 
-### Lifetime annotations — borrow tracking across call boundaries
+### Lifetime annotations - borrow tracking across call boundaries
 
 `fn f<'a>(x: &'a T) -> &'a T { x }` binds a lifetime name `'a` to a parameter's
 borrow. At call sites (`let r = f(&y)`), `resolveReturnBorrow` matches the return
@@ -421,7 +421,7 @@ lifetime to the parameter that carries it, finds the corresponding argument (`&y
 ### Spawn and thread safety
 
 `spawn { body }` enforces that all outer-scope variables mentioned in `body` are
-`isCopyable`. Copy types have value semantics — sharing them between threads is
+`isCopyable`. Copy types have value semantics - sharing them between threads is
 always safe because there is no aliasing. Non-Copy types (`Light`, lists, `&mut`)
 have ownership/aliasing that would be a data race. The type system rejects the
 program before any thread is spawned. The interpreter runs the block synchronously

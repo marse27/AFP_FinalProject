@@ -1,0 +1,6 @@
+// Phase 2A error: mutating an immutable list.
+// list is declared without mut, so push is not allowed on it.
+// Expected error: "Cannot mutate immutable list"
+let list = [1, 2];
+list.push(3);
+list

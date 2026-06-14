@@ -1,4 +1,6 @@
-// If-else statement and while loop
+// Phase 0: if-else statement and while loop.
+// The if-else sets y = 1 (since x < 1). The while loop increments y to 5.
+// Expected output: 5
 let mut x = 0;
 let mut y = 0;
 if x < 1 {

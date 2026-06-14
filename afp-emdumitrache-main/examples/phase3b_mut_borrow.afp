@@ -1,21 +1,8 @@
-// Phase 3B: Mutable Borrows
-//
-// A mutable borrow (&mut x) gives exclusive write access to a variable.
-// Exclusivity: while a mutable borrow is live, no other borrows are allowed.
-// SDerefAssign (*r = e) writes through a mutable reference.
-
-// Example 1: *b + *b — double dereference of &mut (place-expression semantics)
-// TRefMut is non-Copy, but EDeref (EVar r) is a place expression that does not
-// consume ownership of r. Both uses of *b are valid.
+// Phase 3B: mutable borrows - exclusive write access through &mut.
+// &mut x grants read and write access. *b can be read multiple times
+// because EDeref of a &mut is a place-expression and does not consume b.
+// Exclusivity: while b is alive no other borrow of x is allowed.
+// Expected output: 42
 fn double_via_mut(b: &mut int) -> int { *b + *b };
 let mut x = 21;
 double_via_mut(&mut x)
-// Expected output: 42
-
-// Example 2: set_red — mutate a Light through a mutable reference
-// fn set_red(mut light: &mut Light) -> () { *light = Red };
-// let mut l = Green;
-// set_red(&mut l);
-// l
-// Expected output: Red
-// Expected output: 42

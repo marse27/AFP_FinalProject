@@ -1,5 +1,6 @@
-// Phase 1: reassigning a mutable Light variable restores ownership.
-// After `light = Green`, `light` is owned again and can be passed to a function.
+// Phase 1: ownership transfer and reassignment.
+// Reassigning a mutable variable gives it ownership over the new value.
+// After light = Green, light is owned again and can be passed to id_light.
 // Expected output: Green
 fn id_light(s: Light) -> Light {
     s

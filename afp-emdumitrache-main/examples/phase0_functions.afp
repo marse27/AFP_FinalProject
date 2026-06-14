@@ -1,4 +1,6 @@
-// Multi-param functions and mutable parameters
+// Phase 0: multi parameter functions and mutable parameters.
+// double(3) = 6, no_arg() = 42, plus(6, 42) = 48.
+// Expected output: 48
 fn double(x: int) -> int {
     x + x
 };

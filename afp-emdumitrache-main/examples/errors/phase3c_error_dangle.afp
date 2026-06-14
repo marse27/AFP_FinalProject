@@ -1,0 +1,12 @@
+// Phase 3C error: dangling borrow.
+// r is reassigned to borrow x inside the inner block.
+// When the block ends, x goes out of scope but r still holds a borrow of it.
+// Dropping a borrowed value would leave a dangling reference.
+// Expected error: "dropped while still borrowed"
+let y = Red;
+let mut r = &y;
+{
+    let x = Red;
+    r = &x
+};
+*r

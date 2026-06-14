@@ -1,4 +1,6 @@
-// Mutable variables and reassignment
+// Phase 0: mutable variables and reassignment.
+// A mutable variable can be reassigned; an immutable one cannot.
+// Expected output: 5
 let mut x = 0;
 x = 5;
 x

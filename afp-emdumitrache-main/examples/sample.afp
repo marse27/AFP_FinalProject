@@ -1,7 +1,0 @@
-val x = 3;
-val y = 5;
-val x = (let w = 3 in w + w) - 1;
-fun orFalse (a : bool) = a || True;
-val z = x + True < 10;
-res = orFalse(z);
-res

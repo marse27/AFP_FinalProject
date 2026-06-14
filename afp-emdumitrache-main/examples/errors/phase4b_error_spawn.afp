@@ -1,0 +1,8 @@
+// Phase 4B error: capturing a non-Copy value in a spawn block.
+// Light is a non-Copy type. Capturing x inside spawn would share ownership
+// across thread boundaries, which the type checker forbids.
+// Only Copy types (int, bool, immutable references) can be captured.
+// Expected error: "Cannot capture non-Copy variable"
+let x = Red;
+spawn { let y = x };
+0

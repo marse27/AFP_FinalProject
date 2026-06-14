@@ -1,0 +1,7 @@
+// Phase 4A error: returning a reference from a non-lifetime function.
+// A plain function cannot return a reference because there is no lifetime
+// annotation to prove the returned reference stays valid at the call site.
+// Use fn bad<'a>(x: &'a int) -> &'a int instead.
+// Expected error: "cannot return a reference type"
+fn bad(x: &int) -> &int { x };
+0

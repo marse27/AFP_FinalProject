@@ -1,28 +1,28 @@
-# Complete Codebase Walkthrough — AFP Final Project
+# Complete Codebase Walkthrough - AFP Final Project
 
 > A full explanation of every module, every function, and every design decision.
-> Written to be understood from scratch — no prior knowledge assumed.
+> Written to be understood from scratch - no prior knowledge assumed.
 
 ---
 
 ## Table of Contents
 
 1. [What is this project?](#1-what-is-this-project)
-2. [The Grammar — `Lang.cf` and `Lang/Abs.hs`](#2-the-grammar)
-3. [Parsing — `Evaluator.hs`](#3-parsing)
-4. [Values — `Value.hs`](#4-values)
-5. [The Scope Stack — `ScopeStack.hs`](#5-the-scope-stack)
-6. [The Contexts — `Context.hs`](#6-the-contexts)
-7. [The Monads — `Tc.hs` and `Eval.hs`](#7-the-monads)
-8. [The Logger — `Logger.hs`](#8-the-logger)
-9. [Type Checker: Expressions — `TypeCheck/Expr.hs`](#9-type-checker-expressions)
-10. [Type Checker: Statements — `TypeCheck/Stmt.hs`](#10-type-checker-statements)
-11. [Type Checker: Programs — `TypeCheck/Prog.hs`](#11-type-checker-programs)
-12. [Interpreter: Expressions — `Interp/Expr.hs`](#12-interpreter-expressions)
-13. [Interpreter: Statements — `Interp/Stmt.hs`](#13-interpreter-statements)
-14. [Interpreter: Programs — `Interp/Prog.hs`](#14-interpreter-programs)
-15. [Top-level wiring — `Run.hs`](#15-top-level-wiring)
-16. [The Executable — `app/Main.hs`](#16-the-executable)
+2. [The Grammar - `Lang.cf` and `Lang/Abs.hs`](#2-the-grammar)
+3. [Parsing - `Evaluator.hs`](#3-parsing)
+4. [Values - `Value.hs`](#4-values)
+5. [The Scope Stack - `ScopeStack.hs`](#5-the-scope-stack)
+6. [The Contexts - `Context.hs`](#6-the-contexts)
+7. [The Monads - `Tc.hs` and `Eval.hs`](#7-the-monads)
+8. [The Logger - `Logger.hs`](#8-the-logger)
+9. [Type Checker: Expressions - `TypeCheck/Expr.hs`](#9-type-checker-expressions)
+10. [Type Checker: Statements - `TypeCheck/Stmt.hs`](#10-type-checker-statements)
+11. [Type Checker: Programs - `TypeCheck/Prog.hs`](#11-type-checker-programs)
+12. [Interpreter: Expressions - `Interp/Expr.hs`](#12-interpreter-expressions)
+13. [Interpreter: Statements - `Interp/Stmt.hs`](#13-interpreter-statements)
+14. [Interpreter: Programs - `Interp/Prog.hs`](#14-interpreter-programs)
+15. [Top-level wiring - `Run.hs`](#15-top-level-wiring)
+16. [The Executable - `app/Main.hs`](#16-the-executable)
 17. [Complete Data Flow Diagram](#17-complete-data-flow-diagram)
 18. [Design Decisions Summary](#18-design-decisions-summary)
 
@@ -33,26 +33,26 @@
 This project is a **programming language built from scratch in Haskell**. It has three parts:
 
 1. **Parser**: takes text like `"let x = 5; x + 1"` and turns it into a data structure (a tree)
-2. **Type checker**: walks that tree and verifies it is safe — no using a variable after it was given away, no two people writing to the same memory at once
-3. **Interpreter**: walks the tree again and actually *runs* it — variables get real values, arithmetic happens, functions are called
+2. **Type checker**: walks that tree and verifies it is safe - no using a variable after it was given away, no two people writing to the same memory at once
+3. **Interpreter**: walks the tree again and actually *runs* it - variables get real values, arithmetic happens, functions are called
 
 The language is inspired by **Rust** and implements an **ownership type system**. The core idea of ownership is:
 
 - Every value has exactly **one owner** at any time
-- Non-copyable values (like the `Light` traffic-light enum) are **consumed** when you use them — you can't use them again
+- Non-copyable values (like the `Light` traffic-light enum) are **consumed** when you use them - you can't use them again
 - You can temporarily **borrow** a value without consuming it, using references (`&x` or `&mut x`)
 - At most **one mutable borrow** can exist at a time (no aliased mutation)
 - **Borrows expire automatically** when the variable holding them is no longer used (Non-Lexical Lifetimes)
 
-All of these guarantees are checked **statically** — before the program runs.
+All of these guarantees are checked **statically** - before the program runs.
 
 ---
 
 ## 2. The Grammar
 
 ### Files
-- `grammar/Lang.cf` — the grammar definition (you write this)
-- `grammar/Lang/Abs.hs` — the generated Abstract Syntax Tree types (BNFC generates this)
+- `grammar/Lang.cf` - the grammar definition (you write this)
+- `grammar/Lang/Abs.hs` - the generated Abstract Syntax Tree types (BNFC generates this)
 
 ### What is a grammar?
 
@@ -93,7 +93,7 @@ SFunLt.  Stmt ::= "fn" Ident "<" [Lifetime] ">" "(" [Param] ")" "->" Type Block 
 
 ### The generated AST: `Lang/Abs.hs`
 
-BNFC reads `Lang.cf` and produces Haskell data types — one type per grammar category:
+BNFC reads `Lang.cf` and produces Haskell data types - one type per grammar category:
 
 ```haskell
 data Program = Program [Stmt]
@@ -153,7 +153,7 @@ newtype Ident = Ident String  -- a variable or function name
 
 ### File: `src/Evaluator.hs`
 
-This is the smallest module — it wraps the BNFC-generated parser:
+This is the smallest module - it wraps the BNFC-generated parser:
 
 ```haskell
 parse :: String -> Either String Program
@@ -164,8 +164,8 @@ parse = pProgram . myLexer
 - `pProgram` turns tokens into a `Program` AST, or returns an error string
 
 `Either String Program` is Haskell's standard "might fail" type:
-- `Left "parse error..."` — something went wrong
-- `Right (Program [...])` — success, here is the AST
+- `Left "parse error..."` - something went wrong
+- `Right (Program [...])` - success, here is the AST
 
 Both `myLexer` and `pProgram` were generated by BNFC from `Lang.cf`.
 
@@ -183,7 +183,7 @@ Before type-checking or interpreting, we need to define what the language's *val
 data Value
     = VInt Integer        -- an integer: 42, -7, 0
     | VBool Bool          -- true or false
-    | VUnit               -- () — nothing, like void
+    | VUnit               -- () - nothing, like void
     | VLightRed           -- the traffic light enum value Red
     | VLightYellow        -- Yellow
     | VLightGreen         -- Green
@@ -191,11 +191,11 @@ data Value
     | VOk  Value          -- Result::Ok(v)
     | VErr Value          -- Result::Err(v)
     | VPair Value Value   -- a pair: (v1, v2)
-    | VRef    Ident       -- an immutable reference — stores the VARIABLE NAME
-    | VRefMut Ident       -- a mutable reference   — stores the VARIABLE NAME
+    | VRef    Ident       -- an immutable reference - stores the VARIABLE NAME
+    | VRefMut Ident       -- a mutable reference   - stores the VARIABLE NAME
 ```
 
-**Important subtlety about references:** `VRef Ident` does not store the value being pointed at — it stores the **name** of the variable. At runtime, dereferencing a `VRef x` means looking up `x` in the variable environment. This is like a pointer that only works while the variable is still in scope. A `VRef "signal"` is a reference to whatever `signal` currently holds.
+**Important subtlety about references:** `VRef Ident` does not store the value being pointed at - it stores the **name** of the variable. At runtime, dereferencing a `VRef x` means looking up `x` in the variable environment. This is like a pointer that only works while the variable is still in scope. A `VRef "signal"` is a reference to whatever `signal` currently holds.
 
 ### `isCopyable :: Type -> Bool`
 
@@ -212,11 +212,11 @@ isCopyable (TRefMutLt _ _) = False
 isCopyable _              = True    -- int, bool, () are Copy
 ```
 
-**Why this distinction?** This mirrors Rust's `Copy` trait. Types like `int` and `bool` are "value types" — copying them is harmless (like copying a number on paper). Types like `Light` are "ownership types" — there is exactly one copy in the world, and using it means consuming it. References (`&T`) are safe to copy because they're read-only. Mutable references (`&mut T`) are not safe to copy because having two mutable references to the same data would allow two simultaneous writers — a data race.
+**Why this distinction?** This mirrors Rust's `Copy` trait. Types like `int` and `bool` are "value types" - copying them is harmless (like copying a number on paper). Types like `Light` are "ownership types" - there is exactly one copy in the world, and using it means consuming it. References (`&T`) are safe to copy because they're read-only. Mutable references (`&mut T`) are not safe to copy because having two mutable references to the same data would allow two simultaneous writers - a data race.
 
 ### `eraseLifetime :: Type -> Type`
 
-Lifetime annotations like `&'a int` exist only at compile time — they help the type checker track which reference came from which variable. When a lifetime-annotated function is *called*, the caller passes a plain `&int`. This function strips the lifetime annotation so the types match:
+Lifetime annotations like `&'a int` exist only at compile time - they help the type checker track which reference came from which variable. When a lifetime-annotated function is *called*, the caller passes a plain `&int`. This function strips the lifetime annotation so the types match:
 
 ```haskell
 eraseLifetime (TRefLt _ t)    = TRef t      -- &'a T  becomes  &T
@@ -227,10 +227,10 @@ eraseLifetime t               = t           -- everything else unchanged
 ### Function closures
 
 ```haskell
--- Used by the INTERPRETER — stores the actual code to run
+-- Used by the INTERPRETER - stores the actual code to run
 data Closure = Fun [Param] Block
 
--- Used by the TYPE CHECKER — stores only the type signature
+-- Used by the TYPE CHECKER - stores only the type signature
 data TClosure = TFun   [Param] Type             -- plain function
               | TFunLt [Ident] [Param] Type     -- lifetime-generic function
 ```
@@ -359,9 +359,9 @@ traverseWithKey f (ScopeStack frames) =
 
 ### Why a persistent (immutable) structure?
 
-Haskell is a **pure functional language** — you cannot mutate data in place. Instead, every operation returns a *new* scope stack. Unchanged frames are **shared** between the old and new stack (no copying). This is safe and efficient.
+Haskell is a **pure functional language** - you cannot mutate data in place. Instead, every operation returns a *new* scope stack. Unchanged frames are **shared** between the old and new stack (no copying). This is safe and efficient.
 
-Because the structure is persistent, you can always "go back" to a previous version — useful for type-checking both branches of an `if-else` (each branch starts from the same pre-branch context).
+Because the structure is persistent, you can always "go back" to a previous version - useful for type-checking both branches of an `if-else` (each branch starts from the same pre-branch context).
 
 ---
 
@@ -369,9 +369,9 @@ Because the structure is persistent, you can always "go back" to a previous vers
 
 ### File: `src/Context.hs`
 
-The type checker and interpreter both need to thread *state* through all their computations. This state is called the **context**. There are two different contexts — one for type checking and one for interpreting.
+The type checker and interpreter both need to thread *state* through all their computations. This state is called the **context**. There are two different contexts - one for type checking and one for interpreting.
 
-### `VarInfo` — per-variable state for the type checker
+### `VarInfo` - per-variable state for the type checker
 
 ```haskell
 data VarInfo = VarInfo
@@ -420,7 +420,7 @@ data EvalCtx = EvalCtx
   }
 ```
 
-**Why is `tcFuns` a flat `Map`, not a `ScopeStack`?** Functions need to be globally visible — you can call `f` from anywhere in the program after it's been defined. A flat map is simpler and the function names don't go out of scope within the scope stack.
+**Why is `tcFuns` a flat `Map`, not a `ScopeStack`?** Functions need to be globally visible - you can call `f` from anywhere in the program after it's been defined. A flat map is simpler and the function names don't go out of scope within the scope stack.
 
 ### Van Laarhoven Lenses
 
@@ -506,14 +506,14 @@ A monad is a design pattern for **chaining computations that share some context 
 - The `State s` monad chains computations that read and write shared state `s`
 - The `IO` monad chains computations that do input/output
 
-The key benefit: you don't have to manually thread the shared state through every function call — the monad does it for you automatically.
+The key benefit: you don't have to manually thread the shared state through every function call - the monad does it for you automatically.
 
 ### Why `ExceptT String (State TcCtx)`?
 
 The type checker needs **two capabilities at the same time**:
 
-1. **Mutable state** — the context `TcCtx` changes as variables come into scope, get moved, and get borrowed
-2. **Short-circuiting errors** — when a type error is found, stop immediately; don't continue checking the rest of the program
+1. **Mutable state** - the context `TcCtx` changes as variables come into scope, get moved, and get borrowed
+2. **Short-circuiting errors** - when a type error is found, stop immediately; don't continue checking the rest of the program
 
 Neither alone is enough:
 - Plain `State TcCtx` can't abort execution on error
@@ -525,11 +525,11 @@ The solution is a **monad transformer stack**:
 type Tc a = ExceptT String (State TcCtx) a
 ```
 
-`State TcCtx` is the **inner monad** — it handles state. `ExceptT String` is **wrapped around it** — it adds error-throwing on top. Working together:
+`State TcCtx` is the **inner monad** - it handles state. `ExceptT String` is **wrapped around it** - it adds error-throwing on top. Working together:
 
-- `gets f` — reads a field from the current `TcCtx` (via `State`)
-- `modify f` — updates the `TcCtx` (via `State`)
-- `throwError msg` — aborts immediately with an error message (via `ExceptT`)
+- `gets f` - reads a field from the current `TcCtx` (via `State`)
+- `modify f` - updates the `TcCtx` (via `State`)
+- `throwError msg` - aborts immediately with an error message (via `ExceptT`)
 
 ```haskell
 runTc :: TcCtx -> Tc a -> Either String a
@@ -548,7 +548,7 @@ runEval :: EvalCtx -> Eval a -> Either String a
 runEval ctx m = evalState (runExceptT m) ctx
 ```
 
-Structurally identical to `Tc` — just `EvalCtx` instead of `TcCtx`. This means every combinator (`throwError`, `gets`, `modify`) works the same way in both halves of the implementation. The two codebases are parallel in structure.
+Structurally identical to `Tc` - just `EvalCtx` instead of `TcCtx`. This means every combinator (`throwError`, `gets`, `modify`) works the same way in both halves of the implementation. The two codebases are parallel in structure.
 
 ---
 
@@ -560,8 +560,8 @@ Structurally identical to `Tc` — just `EvalCtx` instead of `TcCtx`. This means
 
 Haskell has **lightweight threads** via `forkIO :: IO () -> IO ThreadId`. Forking is cheap (thousands of threads are normal). Two key concurrency primitives:
 
-- `Chan a` — an unbounded FIFO channel. `writeChan ch v` puts `v` in; `readChan ch` blocks until a value is available and returns it.
-- `MVar a` — a mutex box. Either empty or holding a value. `putMVar mv v` fills it (blocks if already full). `takeMVar mv` empties it and returns the value (blocks if already empty).
+- `Chan a` - an unbounded FIFO channel. `writeChan ch v` puts `v` in; `readChan ch` blocks until a value is available and returns it.
+- `MVar a` - a mutex box. Either empty or holding a value. `putMVar mv v` fills it (blocks if already full). `takeMVar mv` empties it and returns the value (blocks if already empty).
 
 ### The design
 
@@ -584,7 +584,7 @@ startLogger enabled = do
   return (Logger ch done enabled)
 ```
 
-`forkIO (drain ch done)` starts `drain` in a **new background thread**. The main thread continues immediately — it does not wait.
+`forkIO (drain ch done)` starts `drain` in a **new background thread**. The main thread continues immediately - it does not wait.
 
 ```haskell
 drain :: Chan (Maybe LogMsg) -> MVar () -> IO ()
@@ -605,7 +605,7 @@ stopLogger (Logger ch done _) = do
   takeMVar done             -- BLOCK until drain has finished (MVar is filled by drain)
 ```
 
-`takeMVar done` blocks the main thread until the drain thread has called `putMVar done ()`. This is a **synchronization barrier** — it prevents the program from exiting before all log messages are printed.
+`takeMVar done` blocks the main thread until the drain thread has called `putMVar done ()`. This is a **synchronization barrier** - it prevents the program from exiting before all log messages are printed.
 
 ```haskell
 logMsg :: Logger -> LogMsg -> IO ()
@@ -663,7 +663,7 @@ infer ELightYellow    = return TLight
 infer ELightGreen     = return TLight
 ```
 
-These can't fail — they always have a known type.
+These can't fail - they always have a known type.
 
 ### Arithmetic and logic helpers
 
@@ -683,7 +683,7 @@ comparison e1 e2 = check e1 TInt >> check e2 TInt >> return TBool
 
 Used by: `infer (EAdd e1 e2) = arithmetic e1 e2`, etc.
 
-### `EVar x` — the ownership check (most important case)
+### `EVar x` - the ownership check (most important case)
 
 ```haskell
 infer (EVar x) = do
@@ -708,11 +708,11 @@ infer (EVar x) = do
       return t
 ```
 
-After the `CONSUME` step, `x.varOwned = False`. Any future `EVar x` hits CHECK 1. This implements **affine types** — non-Copy values can only be used once.
+After the `CONSUME` step, `x.varOwned = False`. Any future `EVar x` hits CHECK 1. This implements **affine types** - non-Copy values can only be used once.
 
 For `Copy` types (like `int`), all three checks are skipped and the type is returned unchanged. Ints can be read any number of times.
 
-### `ERef x` — creating an immutable borrow (expression form)
+### `ERef x` - creating an immutable borrow (expression form)
 
 ```haskell
 infer (ERef x) = do
@@ -726,7 +726,7 @@ infer (ERef x) = do
 
 This only checks validity and returns the type. The actual borrow counter increment (`x.varBorrows += 1`) happens in `TypeCheck/Stmt.hs` when the result is bound via `let r = &x`. A bare `&x` expression (not bound to anything) doesn't track borrows.
 
-### `ERefMut x` — creating a mutable borrow (expression form)
+### `ERefMut x` - creating a mutable borrow (expression form)
 
 ```haskell
 infer (ERefMut x) = do
@@ -738,7 +738,7 @@ infer (ERefMut x) = do
 
 Adds the extra check: the variable must have been declared with `mut`. You can't take a mutable borrow of an immutable variable.
 
-### `EDeref e` — dereferencing a reference
+### `EDeref e` - dereferencing a reference
 
 ```haskell
 -- Special case: dereferencing a plain variable (place expression)
@@ -756,9 +756,9 @@ infer (EDeref (EVar r)) = do
 
 Why the special case for `EDeref (EVar r)` before the general `EDeref e`?
 
-`TRefMut` is **not Copy**. If we evaluated `r` as a plain `EVar`, the ownership check in `infer (EVar r)` would consume it (set `varOwned = False`). But `*r` is a **place expression** — it names the thing `r` points at, without consuming `r`. By pattern-matching on `EDeref (EVar r)` first, we bypass the move semantics and just look at `r`'s type directly.
+`TRefMut` is **not Copy**. If we evaluated `r` as a plain `EVar`, the ownership check in `infer (EVar r)` would consume it (set `varOwned = False`). But `*r` is a **place expression** - it names the thing `r` points at, without consuming `r`. By pattern-matching on `EDeref (EVar r)` first, we bypass the move semantics and just look at `r`'s type directly.
 
-### `ECall f args` — function calls
+### `ECall f args` - function calls
 
 ```haskell
 infer (ECall f args) = do
@@ -784,7 +784,7 @@ infer (ECall f args) = do
         _ -> return retTy
 ```
 
-### `EMatch e arms` — pattern matching
+### `EMatch e arms` - pattern matching
 
 ```haskell
 infer (EMatch e arms) = do
@@ -820,7 +820,7 @@ checkExhaustive (TResult _) pats
   | otherwise = throwError "Non-exhaustive match on Result: must cover Ok and Err"
 ```
 
-This is a **static** exhaustiveness check — verified at compile time, not at runtime.
+This is a **static** exhaustiveness check - verified at compile time, not at runtime.
 
 ---
 
@@ -828,7 +828,7 @@ This is a **static** exhaustiveness check — verified at compile time, not at r
 
 ### File: `src/TypeCheck/Stmt.hs`
 
-Statements don't produce values — they update the typing context. The function signature is:
+Statements don't produce values - they update the typing context. The function signature is:
 
 ```haskell
 infer :: Stmt -> Tc ()
@@ -855,9 +855,9 @@ infer (SLetMut x e) = E.infer e >>= \t ->
   modify (over tcVars (insertTop x (VarInfo t True  True 0 0 Nothing)))
 ```
 
-Why pattern match first on `ERef` and `ERefMut`? Because `let r = &x` is not just a normal let-binding — it establishes a borrow relationship that needs to be tracked in `x.varBorrows`. The general `E.infer (ERef x)` case only returns a type; `letBorrow` does the full tracking.
+Why pattern match first on `ERef` and `ERefMut`? Because `let r = &x` is not just a normal let-binding - it establishes a borrow relationship that needs to be tracked in `x.varBorrows`. The general `E.infer (ERef x)` case only returns a type; `letBorrow` does the full tracking.
 
-### `letBorrow r x isMut` — `let r = &x`
+### `letBorrow r x isMut` - `let r = &x`
 
 ```haskell
 letBorrow r x isMut = do
@@ -880,7 +880,7 @@ After this:
 
 The borrow relationship is tracked in both directions: `x` knows it's borrowed; `r` knows it is a borrow of `x`.
 
-### `letMutBorrow r x isMut` — `let r = &mut x`
+### `letMutBorrow r x isMut` - `let r = &mut x`
 
 ```haskell
 letMutBorrow r x isMut = do
@@ -893,9 +893,9 @@ letMutBorrow r x isMut = do
   modify (over tcVars (insertTop r (VarInfo (TRefMut (varType vi)) isMut True 0 0 (Just x))))
 ```
 
-The critical **exclusivity rule**: you can't create a mutable borrow if there are ANY existing borrows (shared or exclusive). This statically guarantees **no aliased mutation** — the core safety property of the type system.
+The critical **exclusivity rule**: you can't create a mutable borrow if there are ANY existing borrows (shared or exclusive). This statically guarantees **no aliased mutation** - the core safety property of the type system.
 
-### `SAssign x e` — reassignment
+### `SAssign x e` - reassignment
 
 ```haskell
 infer (SAssign x e) = do
@@ -913,7 +913,7 @@ infer (SAssign x e) = do
 
 Assigning to `x` **restores ownership** (`varOwned = True`). If `x` was previously a reference variable pointing somewhere, that borrow relationship is cleared.
 
-### `SDerefAssign r e` — writing through a mutable reference
+### `SDerefAssign r e` - writing through a mutable reference
 
 ```haskell
 infer (SDerefAssign r e) = do
@@ -927,7 +927,7 @@ infer (SDerefAssign r e) = do
       _              -> throwError "not a reference"
 ```
 
-### `SFun f params retTy body` — function definitions
+### `SFun f params retTy body` - function definitions
 
 ```haskell
 infer (SFun f params retTy body) = do
@@ -948,7 +948,7 @@ infer (SFun f params retTy body) = do
 
 `bindParam` inserts each parameter into the innermost scope as a `VarInfo`.
 
-### `SFunLt f lts params retTy body` — lifetime-generic functions
+### `SFunLt f lts params retTy body` - lifetime-generic functions
 
 ```haskell
 infer (SFunLt f lts params retTy body) = do
@@ -965,9 +965,9 @@ infer (SFunLt f lts params retTy body) = do
   ...
 ```
 
-Example: `fn first<'a,'b>(x: &'a int, y: &'b int) -> &'a int` — the return lifetime `'a` must appear in `['a, 'b]`.
+Example: `fn first<'a,'b>(x: &'a int, y: &'b int) -> &'a int` - the return lifetime `'a` must appear in `['a, 'b]`.
 
-### `SSpawn body` — Phase 4B
+### `SSpawn body` - Phase 4B
 
 ```haskell
 infer (SSpawn body) = do
@@ -981,7 +981,7 @@ infer (SSpawn body) = do
   checkBlock body                          -- then type-check the block body
 ```
 
-**Why only `Copy` captures?** If a thread captured a `Light` value, the spawning thread and the spawned thread would both own it — two owners of an affine value is a contradiction. If a thread captured `&mut T`, two threads could mutate the same memory simultaneously — a data race. `Copy` types (like `int`, `bool`, `&T`) are safe to share: either they're value types (no aliasing possible) or they're read-only (immutable references can't be used to mutate).
+**Why only `Copy` captures?** If a thread captured a `Light` value, the spawning thread and the spawned thread would both own it - two owners of an affine value is a contradiction. If a thread captured `&mut T`, two threads could mutate the same memory simultaneously - a data race. `Copy` types (like `int`, `bool`, `&T`) are safe to share: either they're value types (no aliasing possible) or they're read-only (immutable references can't be used to mutate).
 
 ### The NLL (Non-Lexical Lifetimes) subsystem
 
@@ -1047,9 +1047,9 @@ releaseExpiredBorrows live = do
   mapM_ releaseAndClear expired
 ```
 
-**The traversal trick:** `Map.traverseWithKey f m` is a van Laarhoven traversal over a map's `(key, value)` pairs. When `f` returns `Const [...]`, the `Applicative` instance for `Const [(k,v)]` concatenates lists (since `[(k,v)]` is a `Monoid`). The entire traversal produces `Const [list of expired borrows]` — a structural fold with no intermediate allocations.
+**The traversal trick:** `Map.traverseWithKey f m` is a van Laarhoven traversal over a map's `(key, value)` pairs. When `f` returns `Const [...]`, the `Applicative` instance for `Const [(k,v)]` concatenates lists (since `[(k,v)]` is a `Monoid`). The entire traversal produces `Const [list of expired borrows]` - a structural fold with no intermediate allocations.
 
-The same `traverseWithKey` instantiated with `Identity` would map over the values; with `Const` it collects data. Same code, different behavior — this is the power of the abstraction.
+The same `traverseWithKey` instantiated with `Identity` would map over the values; with `Const` it collects data. Same code, different behavior - this is the power of the abstraction.
 
 #### `releaseTopBorrows :: Tc ()`
 
@@ -1068,7 +1068,7 @@ releaseTopBorrows = do
 
 When a scope closes (block exit), any reference variables in that scope must decrement their referents' borrow counters. After that, we verify no variable in the closing scope is still being borrowed by something in an outer scope (which would be a dangling reference).
 
-### `callAndBind r f args isMut` — `let r = f(...)` with lifetime tracking
+### `callAndBind r f args isMut` - `let r = f(...)` with lifetime tracking
 
 For plain `TFun` functions, this just delegates to `E.infer (ECall f args)` and inserts `r` normally.
 
@@ -1109,7 +1109,7 @@ infer (Program (s : rest)) = do
   infer (Program rest)
 ```
 
-A program is a list of statements. The last statement must be a bare expression (`SExpr e`) — its type is the program's return type. NLL is applied between every top-level statement, not just inside blocks.
+A program is a list of statements. The last statement must be a bare expression (`SExpr e`) - its type is the program's return type. NLL is applied between every top-level statement, not just inside blocks.
 
 ---
 
@@ -1139,7 +1139,7 @@ interp (EVar x) = do
     Nothing -> throwError $ "Variable " ++ show x ++ " is not bound"
 ```
 
-The interpreter is **simpler** than the type checker — it just looks up the value. There is no ownership tracking at runtime. The type checker has already verified everything is safe at compile time; the interpreter just executes.
+The interpreter is **simpler** than the type checker - it just looks up the value. There is no ownership tracking at runtime. The type checker has already verified everything is safe at compile time; the interpreter just executes.
 
 ### `ERef x` and `ERefMut x`
 
@@ -1267,7 +1267,7 @@ interp (SAssign x e) = E.interp e >>= \v -> modify (over evalVars (updateStack x
 -- updateStack searches outward from innermost scope, updates the first frame that has x
 ```
 
-### `SDerefAssign r e` — writing through a mutable reference
+### `SDerefAssign r e` - writing through a mutable reference
 
 ```haskell
 interp (SDerefAssign r e) = do
@@ -1330,7 +1330,7 @@ interp (SWhile cond body) = loop
         _ -> throwError "While condition must be a boolean"
 ```
 
-### `SFun` and `SFunLt` — storing closures
+### `SFun` and `SFunLt` - storing closures
 
 ```haskell
 interp (SFun f params _ body) =
@@ -1340,7 +1340,7 @@ interp (SFunLt f _ params _ body) =
   modify (over evalFuns (Map.insert f (Fun params body)))
 ```
 
-The type information and lifetimes are discarded — the interpreter only needs the parameter list and body. The function is stored in the global function map.
+The type information and lifetimes are discarded - the interpreter only needs the parameter list and body. The function is stored in the global function map.
 
 ### `SSpawn body`
 
@@ -1348,7 +1348,7 @@ The type information and lifetimes are discarded — the interpreter only needs 
 interp (SSpawn body) = interpBlock body
 ```
 
-The interpreter runs the spawn block **synchronously** — exactly like a regular block. The type checker has already verified Copy-capture safety at compile time. A real concurrent runtime would `forkIO` here, but that would require lifting `Eval` into `IO`, breaking the pure deterministic test suite.
+The interpreter runs the spawn block **synchronously** - exactly like a regular block. The type checker has already verified Copy-capture safety at compile time. A real concurrent runtime would `forkIO` here, but that would require lifting `Eval` into `IO`, breaking the pure deterministic test suite.
 
 ### `interpBlock`
 
@@ -1360,7 +1360,7 @@ interpBlock (Block stmts) = do
   modify (over evalVars pop)    -- close the scope (inner bindings are discarded)
 ```
 
-When `pop` is called, all variables declared inside the block are gone. But mutations to outer variables (made via `updateStack`) persist — they were written into outer frames.
+When `pop` is called, all variables declared inside the block are gone. But mutations to outer variables (made via `updateStack`) persist - they were written into outer frames.
 
 ---
 
@@ -1435,8 +1435,8 @@ main = do
 ```
 
 Two modes:
-1. **File mode**: `afp-lang myprogram.afp` — reads the file, runs it, prints the result
-2. **REPL mode**: `afp-lang` — interactive loop where you type expressions one at a time
+1. **File mode**: `afp-lang myprogram.afp` - reads the file, runs it, prints the result
+2. **REPL mode**: `afp-lang` - interactive loop where you type expressions one at a time
 
 Optional flag: `--log` enables the background logging thread.
 
@@ -1547,7 +1547,7 @@ Env.hs         ─────────────────────�
 | **Lenses** | Hand-rolled van Laarhoven lenses (5 total) | Avoids the huge `lens` library and Template Haskell compilation; fully transparent and understandable | Doesn't scale to large codebases with dozens of fields; no auto-derive |
 | **NLL** | Syntactic `mentionedVars` over-approximation | Avoids constructing a control-flow graph; sound (never misses a live borrow) | Incomplete: borrows stay live longer when a variable appears in a dead branch (e.g., unreachable else branch) |
 | **References at runtime** | `VRef Ident` (store the name, not the value) | Simple; follows the scope stack naturally; no heap allocation needed | Dereferencing requires a scope-stack lookup; doesn't model raw memory addresses |
-| **Synchronous `spawn`** | `interpBlock body` — run the spawn block exactly like a regular block | Keeps `Eval` pure; deterministic tests; type safety guarantee is in the type checker, not the runtime | Not truly concurrent; a real concurrent runtime would need `forkIO` and lifting `Eval` into `IO` |
+| **Synchronous `spawn`** | `interpBlock body` - run the spawn block exactly like a regular block | Keeps `Eval` pure; deterministic tests; type safety guarantee is in the type checker, not the runtime | Not truly concurrent; a real concurrent runtime would need `forkIO` and lifting `Eval` into `IO` |
 | **`isCopyable` as a predicate** | A simple recursive function on `Type` | Separates the semantic question ("can this type be shared?") from every check that needs it; used in `EVar`, `spawn`, list element checking | Has to be kept in sync with any new types added to the language |
 | **`Const` applicative for NLL** | Instantiate `Map.traverseWithKey` with `Const` instead of `Identity` | Reuses the traversal abstraction as a fold; no extra traversal function; no intermediate allocations | Requires understanding the van Laarhoven / applicative functor abstraction; less obvious than a plain `filter` |
 | **Borrow direction tracking** | Both `varBorrows` on the *borrowee* AND `varBorrowOf` on the *borrower* | `varBorrows` allows O(1) exclusivity check; `varBorrowOf` allows cleanup when the *borrower* leaves scope | Two pieces of state must be kept consistent; bugs in release logic could corrupt both |

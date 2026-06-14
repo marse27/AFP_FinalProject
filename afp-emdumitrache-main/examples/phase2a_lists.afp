@@ -1,5 +1,6 @@
-// Phase 2A: mutable list operations.
-// Matches the spec's mutable-list example exactly.
+// Phase 2A: mutable list operations - push, index-assign, remove, insert.
+// Sequence: [1,2] -> push -> [1,2,3] -> list[0]=4 -> [4,2,3]
+//           -> remove(2) -> [4,2] -> snd=list[1]=2 -> insert(1,13) -> [4,13,2]
 // Expected output: 2
 let mut list = [1, 2];
 list.push(3);

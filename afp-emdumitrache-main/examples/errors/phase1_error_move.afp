@@ -1,0 +1,7 @@
+// Phase 1 error: use after move.
+// x is moved into y on the second line.
+// Using x again on the third line is a type error because x no longer owns a value.
+// Expected error: "used after being moved"
+let x = Red;
+let y = x;
+x

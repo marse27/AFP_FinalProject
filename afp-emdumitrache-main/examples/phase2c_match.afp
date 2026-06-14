@@ -1,5 +1,6 @@
-// Phase 2C: Result, pairs, and match pattern matching.
-// Demonstrates: Ok/Err construction, pair construction, match exhaustiveness.
+// Phase 2C: Result type and pattern matching.
+// safe_div returns Ok(42) for safe_div(84, 2); the match extracts the value.
+// A division by zero would return Err(0) instead.
 // Expected output: 42
 
 fn safe_div(x: int, y: int) -> Result<int> {

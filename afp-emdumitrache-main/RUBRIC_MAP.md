@@ -1,4 +1,4 @@
-# Rubric Map — AFP Ownership Type System
+# Rubric Map - AFP Ownership Type System
 
 This file maps every rubric requirement and phase feature to the implementing
 module(s) and test(s). Updated at the end of every stage.
@@ -15,11 +15,11 @@ module(s) and test(s). Updated at the end of every stage.
 | Phase 0: multi-param functions + mutable params | `TypeCheck/Stmt.hs:SFun` `Interp/Stmt.hs:SFun` `TypeCheck/Expr.hs:ECall` `Interp/Expr.hs:ECall` | `TypeCheckTests` "functions", "function error cases" · `InterpTests` "functions", "mutable parameters" | **Done** |
 | Phase 1: affine types / move semantics | `TypeCheck/Expr.hs:infer(EVar)` · `TypeCheck/Stmt.hs:SAssign` · `Context.hs:VarInfo` · `Value.hs:isCopyable` | `TypeCheckTests` "Phase 1: Light bindings", "use-after-move is rejected", "int/bool remain copyable" · `InterpTests` "Phase 1: Light literals", "affine move through let", "mutable Light reassignment", "Light through function" | **Done** |
 | Technique: persistence | `ScopeStack.hs` | implicit in all scope tests | **Done** |
-| Technique: lenses/traversals | `Context.hs` — `view`/`over`/`set` | implicit in all context-state tests | **Done** |
+| Technique: lenses/traversals | `Context.hs` - `view`/`over`/`set` | implicit in all context-state tests | **Done** |
 | Technique: monad transformers | `Tc.hs` `Eval.hs` | implicit in all tests | **Done** |
-| Technique: concurrency | `Logger.hs` — `forkIO`/`Chan`/`MVar`; `Main.hs` — `--log` flag | `LoggerTests` — 5 tests confirming results unchanged + clean drain | **Done** |
-| Basic module/function docs | all `src/` modules | — | **Done** (one-line `-- \|` per function) |
-| Demo presentation | `DESIGN.md` | — | **Done** |
+| Technique: concurrency | `Logger.hs` - `forkIO`/`Chan`/`MVar`; `Main.hs` - `--log` flag | `LoggerTests` - 5 tests confirming results unchanged + clean drain | **Done** |
+| Basic module/function docs | all `src/` modules | - | **Done** (one-line `-- \|` per function) |
+| Demo presentation | `DESIGN.md` | - | **Done** |
 
 ---
 
@@ -47,8 +47,8 @@ module(s) and test(s). Updated at the end of every stage.
 | Requirement | Module(s) | Test(s) | Status |
 |-------------|-----------|---------|--------|
 | Phase 3C: non-lexical lifetimes | `TypeCheck/Stmt.hs:checkStmtsNLL/releaseExpiredBorrows/mentionedVars` · `TypeCheck/Prog.hs:infer` · `ScopeStack.hs:topBindings/traverseWithKey` | `TypeCheckTests` "Phase 3C" (7 tests) · `InterpTests` "Phase 3C" (6 tests) | **Done** |
-| Advanced usage: persistent scope stack (used throughout checker) | `ScopeStack.hs` used in every `TypeCheck/*` and `Interp/*` module | — | **Done** — stack is the sole mechanism for scoping, mutability, and ownership in all phases |
-| Advanced usage: NLL traversal (optics advanced) | `ScopeStack.hs:traverseWithKey` (Van Laarhoven Traversal') · `TypeCheck/Stmt.hs:releaseExpiredBorrows` uses `Map.traverseWithKey` with `Const` applicative as a structural fold | — | **Done** |
+| Advanced usage: persistent scope stack (used throughout checker) | `ScopeStack.hs` used in every `TypeCheck/*` and `Interp/*` module | - | **Done** - stack is the sole mechanism for scoping, mutability, and ownership in all phases |
+| Advanced usage: NLL traversal (optics advanced) | `ScopeStack.hs:traverseWithKey` (Van Laarhoven Traversal') · `TypeCheck/Stmt.hs:releaseExpiredBorrows` uses `Map.traverseWithKey` with `Const` applicative as a structural fold | - | **Done** |
 | Advanced usage: custom effect/transformer | `Tc.hs:ExceptT String (State TcCtx)` · `Eval.hs:ExceptT String (State EvalCtx)` | `LoggerTests` | **Done** |
 
 ---
@@ -66,8 +66,8 @@ module(s) and test(s). Updated at the end of every stage.
 
 | Requirement | Module(s) | Status |
 |-------------|-----------|--------|
-| Comprehensive docs (all types, monads, top-level fns) | all `src/` | **Done** — `-- \|` Haddock doc on every exported type, every top-level function, and every lens in all 15 `src/` modules |
-| Demo answers correct and complete | `DESIGN.md` | **Done** — full syntax reference, all-phases examples, Required Techniques deep-dives, architecture, key design decisions, test summary |
+| Comprehensive docs (all types, monads, top-level fns) | all `src/` | **Done** - `-- \|` Haddock doc on every exported type, every top-level function, and every lens in all 15 `src/` modules |
+| Demo answers correct and complete | `DESIGN.md` | **Done** - full syntax reference, all-phases examples, Required Techniques deep-dives, architecture, key design decisions, test summary |
 
 ---
 
@@ -75,10 +75,10 @@ module(s) and test(s). Updated at the end of every stage.
 
 | Technique | Where used | Advanced usage? | Status |
 |-----------|-----------|-----------------|--------|
-| Persistent data structure | `ScopeStack` — push/pop on every block/function entry; `lookupStack`/`updateStack` for reads and mutable writes | **Yes** — used as the sole scoping + mutability + ownership mechanism throughout every phase | **Done** |
-| Lenses/traversals | `Context.tcVars`, `tcFuns`, `evalVars`, `evalFuns`; `view`/`over`/`set` used in all TypeCheck + Interp modules; `ScopeStack.traverseWithKey` (Van Laarhoven Traversal'); `Map.traverseWithKey` with `Const` applicative as structural fold in NLL | **Yes** — `releaseExpiredBorrows` uses `Const` applicative + `Map.traverseWithKey` for zero-allocation fold over the top scope frame | **Done** |
+| Persistent data structure | `ScopeStack` - push/pop on every block/function entry; `lookupStack`/`updateStack` for reads and mutable writes | **Yes** - used as the sole scoping + mutability + ownership mechanism throughout every phase | **Done** |
+| Lenses/traversals | `Context.tcVars`, `tcFuns`, `evalVars`, `evalFuns`; `view`/`over`/`set` used in all TypeCheck + Interp modules; `ScopeStack.traverseWithKey` (Van Laarhoven Traversal'); `Map.traverseWithKey` with `Const` applicative as structural fold in NLL | **Yes** - `releaseExpiredBorrows` uses `Const` applicative + `Map.traverseWithKey` for zero-allocation fold over the top scope frame | **Done** |
 | Monad transformers/effects | `Tc = ExceptT String (State TcCtx)`; `Eval = ExceptT String (State EvalCtx)`; `throwError`/`gets`/`modify` throughout | Advanced: custom `Log` effect planned Stage 5 | **Done** |
-| Concurrency | `Logger.hs`: background thread (`forkIO`), channel (`Chan (Maybe LogMsg)`), synchronisation (`MVar`); `Main.hs`: `--log` toggle; `TypeCheck/Stmt.hs:SSpawn` + `Interp/Stmt.hs:SSpawn`: user-facing `spawn` with Copy-capture enforcement | **Yes** — `spawn` keyword in language; ownership type system enforces Copy captures, preventing data races across thread boundaries | **Done** |
+| Concurrency | `Logger.hs`: background thread (`forkIO`), channel (`Chan (Maybe LogMsg)`), synchronisation (`MVar`); `Main.hs`: `--log` toggle; `TypeCheck/Stmt.hs:SSpawn` + `Interp/Stmt.hs:SSpawn`: user-facing `spawn` with Copy-capture enforcement | **Yes** - `spawn` keyword in language; ownership type system enforces Copy captures, preventing data races across thread boundaries | **Done** |
 
 ---
 
@@ -110,7 +110,7 @@ All commands run from the project root under GHC 9.10.3 (via ghcup):
 
 ```
 cabal test
-# 49 type-checker tests, 36 interpreter tests, 2 bogus tests — all pass
+# 49 type-checker tests, 36 interpreter tests, 2 bogus tests - all pass
 
 cabal run afp-lang -- examples/phase1_affine.afp    # → 1
 cabal run afp-lang -- examples/phase1_ownership.afp # → Green
@@ -134,7 +134,7 @@ All commands run from the project root under GHC 9.10.3 (via ghcup):
 
 ```
 cabal test
-# 35 type-checker tests, 27 interpreter tests, 2 bogus tests — all pass
+# 35 type-checker tests, 27 interpreter tests, 2 bogus tests - all pass
 
 cabal run afp-lang -- examples/phase0_mutable.afp    # → 5
 cabal run afp-lang -- examples/phase0_block.afp      # → 5

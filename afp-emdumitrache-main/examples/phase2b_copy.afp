@@ -1,5 +1,5 @@
-// Phase 2B: int and bool are Copy — a variable keeps ownership after being read.
-// The same binding can be passed to a function multiple times without error.
+// Phase 2B: copyable primitives - int and bool are copy.
+// Passing a to use_int does not consume it, a can be used again afterwards.
 // Expected output: 15  (5 + 5 + 5)
 
 fn use_int(x: int) -> int { x };

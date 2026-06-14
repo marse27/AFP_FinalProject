@@ -1,0 +1,7 @@
+// Phase 2B error: lists are not Copy.
+// Unlike int or bool, a list cannot be used after it has been moved.
+// Moving x into y means x can no longer be used.
+// Expected error: "used after being moved"
+let x = [1, 2];
+let y = x;
+x

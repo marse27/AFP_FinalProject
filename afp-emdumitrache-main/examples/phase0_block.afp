@@ -1,4 +1,7 @@
-// Block scoping: y is not visible outside, but mutation to x persists
+// Phase 0: block scoping.
+// y is declared inside the block and is not visible outside it.
+// The mutation to x persists after the block ends.
+// Expected output: 5
 let mut x = 0;
 {
     let y = 5;

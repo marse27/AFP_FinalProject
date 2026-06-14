@@ -1,0 +1,8 @@
+// Phase 3B error: mutable and immutable borrow conflict.
+// b holds a mutable borrow of x. While b is alive, no other borrow of x is allowed.
+// Trying to create an immutable borrow r while b is still active is a type error.
+// Expected error: "already mutably borrowed"
+let mut x = 5;
+let b = &mut x;
+let r = &x;
+*r + *b

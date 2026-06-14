@@ -1,11 +1,9 @@
--- Phase 4A: Explicit Lifetime Annotations
--- Lifetime-generic functions can return references when the return lifetime
--- names a bound parameter. The type checker tracks borrows across call boundaries.
-
--- Example: identity reference function
--- 'a binds the caller's borrow: r borrows y for the lifetime of r.
+// Phase 4A: explicit lifetime annotations.
+// fn id_ref<'a> declares that the return reference has the same lifetime as x.
+// The type checker tracks that r borrows y across the function call boundary,
+// so y stays alive as long as r is in use.
+// Expected output: 5
 fn id_ref<'a>(x: &'a int) -> &'a int { x };
 let y = 5;
 let r = id_ref(&y);
 *r
--- Expected output: 5

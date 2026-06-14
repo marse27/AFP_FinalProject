@@ -1,0 +1,8 @@
+// Phase 3A error: moving a value while it is borrowed.
+// r holds an immutable borrow of x. As long as r is alive, x cannot be moved.
+// Trying to move x into y while r still exists is a type error.
+// Expected error: "Cannot move ... value is borrowed"
+let x = Red;
+let r = &x;
+let y = x;
+*r

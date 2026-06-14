@@ -1,5 +1,5 @@
-// Phase 1: a Light value is affine - passed into a function exactly once.
-// The function consumes the Light parameter; the caller cannot use it again.
+// Phase 1: affine types, a Light value can be used at most once.
+// is_red consumes the argument, the caller cannot use signal again after this call.
 // Expected output: 1
 fn is_red(s: Light) -> int {
     if s == Red then 1 else 0
