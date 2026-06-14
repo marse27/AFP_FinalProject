@@ -267,16 +267,7 @@ inferArm scrutTy (MatchArm pat body) = do
   modify (over tcVars pop)
   return t
 
--- Here we check that another match arm has the same type as the first arm that was already checked. 
--- This is needed because all branches of a match expression must return the same kind of value.
-checkArmType :: Type -> Arm -> Type -> Tc ()
-checkArmType scrutTy arm expected = do
-  actual <- inferArm scrutTy arm
-  unless (actual == expected) $ throwError $
-    "Match arm has type " ++ printTree actual ++
-    " but expected " ++ printTree expected
-
--- Here we handle the pattern of a match arm. 
+-- Here we handle the pattern of a match arm.
 -- The pattern must fit the type of the value being matched. 
 -- If the pattern introduces variables, those variables are added to the current scope with the correct type.
 bindArmPat :: Type -> Pat -> Tc ()

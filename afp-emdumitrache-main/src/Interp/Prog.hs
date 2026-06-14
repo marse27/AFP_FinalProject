@@ -12,6 +12,6 @@ import qualified Interp.Expr as E
 -- A program must end with an expression, because that expression gives the final value of the program. 
 -- Each statement before that is executed in order.
 interp :: Program -> Eval Value
-interp (Program [])         = throwError "The progrom is missing a return statement"
+interp (Program [])         = throwError "The program is missing a return statement"
 interp (Program [SExpr e])  = E.interp e
 interp (Program (s : rest)) = S.interp s >> interp (Program rest)

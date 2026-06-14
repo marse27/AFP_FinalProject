@@ -54,7 +54,7 @@ interp (SIndexAssign x i e) = do
         VInt n -> do
           newVs <- listSetAt (fromInteger n) val vs
           modify (over evalVars (updateStack x (VList newVs)))
-        _ -> throwError "The The list index must be an integer"
+        _ -> throwError "The list index must be an integer"
     Just _ -> throwError $ show x ++ " is not a list"
 
 -- Here we execute adding a value to the end of a list, like list.push(e). 
